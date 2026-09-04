@@ -1,0 +1,14 @@
+.test-deps/
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.*
+runtime/
+logs/*
+!logs/.gitkeep
+*.safetensors
+*.ckpt
+*.gguf
+*.pt
+*.pth

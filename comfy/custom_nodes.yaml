@@ -1,0 +1,4 @@
+# Native nodes are sufficient for the bundled profiles.
+# Add trusted repositories with an exact 40-character commit SHA.
+# Nodes may declare requirements.txt; arbitrary install.py is never run.
+nodes: {}

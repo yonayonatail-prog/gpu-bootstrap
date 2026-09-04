@@ -1,0 +1,8 @@
+name: llm
+services:
+  comfyui: false
+  llm: true
+models: []
+custom_nodes: []
+workflows: []
+# Reserved for a later backend. Explicitly fails before GPU/model installation.

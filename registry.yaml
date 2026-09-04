@@ -1,0 +1,38 @@
+# Model revisions, sizes and SHA-256 were checked against the HF API.
+models:
+  wan21_t2v_13b:
+    source: huggingface
+    repo: Comfy-Org/Wan_2.1_ComfyUI_repackaged
+    revision: 617a7633e636506f850e043bc4605f290a466a8e
+    destination: diffusion_models
+    files:
+      - path: split_files/diffusion_models/wan2.1_t2v_1.3B_fp16.safetensors
+        size_bytes: 2838303560
+        sha256: be531024cd9018cb5b48c40cfbb6a6191645b1c792eb8bf4f8c1c6e10f924dc5
+  wan21_text_encoder:
+    source: huggingface
+    repo: Comfy-Org/Wan_2.1_ComfyUI_repackaged
+    revision: 617a7633e636506f850e043bc4605f290a466a8e
+    destination: text_encoders
+    files:
+      - path: split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors
+        size_bytes: 6735906897
+        sha256: c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68
+  wan21_vae:
+    source: huggingface
+    repo: Comfy-Org/Wan_2.1_ComfyUI_repackaged
+    revision: 617a7633e636506f850e043bc4605f290a466a8e
+    destination: vae
+    files:
+      - path: split_files/vae/wan_2.1_vae.safetensors
+        size_bytes: 253815318
+        sha256: 2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b
+  sd15:
+    source: huggingface
+    repo: Comfy-Org/stable-diffusion-v1-5-archive
+    revision: 9cfd069101959ca3828bf9c04a4419870832b74f
+    destination: checkpoints
+    files:
+      - path: v1-5-pruned-emaonly-fp16.safetensors
+        size_bytes: 2132696762
+        sha256: e9476a13728cd75d8279f6ec8bad753a66a1957ca375a1464dc63b37db6e3916
