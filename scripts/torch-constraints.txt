@@ -1,3 +1,6 @@
 torch==2.7.1
 torchvision==0.22.1
 torchaudio==2.7.1
+# ComfyUI v0.3.50 predates Transformers 5; keep its text-encoder API stable.
+transformers==4.55.4
+tokenizers==0.21.4
