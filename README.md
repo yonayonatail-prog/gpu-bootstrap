@@ -4,13 +4,13 @@ Disposable GPU Environment Bootstrap / Orchestrator v0.1。Runpodの新品Podに
 
 Gitには設定・コード・ワークフローを保存します。モデルはPodごとに取得し、Network Volumeには依存しません。Podの作成・課金・削除は自動化しません。
 
+自分用のモデル、ワークフロー、Runpod設定に合わせて、気軽にフォークして育ててください。公開版はMIT Licenseで提供しています。
+
 ## 最初の1回だけ設定するもの
 
-1. GitHubで **このリポジトリだけ** を選んだfine-grained personal access tokenを作成します。Repository permissionsは **Contents: Read-only**。トークンはGitにもコマンド履歴にも貼り付けません。
-2. RunpodのSecretsにトークンを登録し、Podテンプレートの環境変数 `GH_TOKEN` に割り当てます。GitHubトークンには有効期限があるため、期限切れ時は更新します。
-3. Ubuntu 22.04 / 24.04、Python 3.10–3.13、NVIDIA GPU・動作するドライバ、rootまたはパスワード不要のsudoを使えるテンプレートを用意します。推奨検証対象はRTX 4090です。CUDA 12.8用PyTorchをインストールするので、対応する十分新しいNVIDIAドライバを使ってください。ドライバ自体はこの仕組みでは導入しません。
-4. HTTPポート **8188** を公開します。ComfyUIは `0.0.0.0:8188` で待ち受けます。ComfyUI自体にはログイン認証を追加していないため、アクセスURLを公開せず、必要ならSSHトンネル等でアクセスを制限してください。
-5. `/workspace` の作業ディスクは **60 GB以上** を初期目安にします。標準videoはモデル約9.2 GiBに加え、Python/CUDA依存・一時ファイル・生成出力分が必要です。起動時に必要空き容量を計算します。既定では導入予算20 GiB、残す空き容量5 GiBを確保します。
+1. Ubuntu 22.04 / 24.04、Python 3.10–3.13、NVIDIA GPU・動作するドライバ、rootまたはパスワード不要のsudoを使えるテンプレートを用意します。推奨検証対象はRTX 4090です。CUDA 12.8用PyTorchをインストールするので、対応する十分新しいNVIDIAドライバを使ってください。ドライバ自体はこの仕組みでは導入しません。
+2. HTTPポート **8188** を公開します。ComfyUIは `0.0.0.0:8188` で待ち受けます。ComfyUI自体にはログイン認証を追加していないため、アクセスURLを公開せず、必要ならSSHトンネル等でアクセスを制限してください。
+3. `/workspace` の作業ディスクは **60 GB以上** を初期目安にします。標準videoはモデル約9.2 GiBに加え、Python/CUDA依存・一時ファイル・生成出力分が必要です。起動時に必要空き容量を計算します。既定では導入予算20 GiB、残す空き容量5 GiBを確保します。
 
 標準のvideo/imageモデルは公開配布です。通常 `HF_TOKEN` は不要です。後からgatedモデルを追加する場合は、Hugging Face側で利用条件に同意してからRunpod Secretに読み取りトークンを追加します。
 
@@ -18,13 +18,13 @@ Gitには設定・コード・ワークフローを保存します。モデル�
 
 ## 毎回貼り付ける1行
 
-Runpodの **Bashターミナル** で実行します。`GH_TOKEN` は上のテンプレート設定から渡されます。
+Runpodの **Bashターミナル** で実行します。公開リポジトリなのでGitHubトークンは不要です。
 
 ```bash
-bash -c 'set -euo pipefail; : "${GH_TOKEN:?Set GH_TOKEN in your Runpod template}"; f=$(mktemp); trap '\''rm -f "$f"'\'' EXIT; printf "header = \"Authorization: Bearer %s\"\n" "$GH_TOKEN" | curl -q --config - --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/yonayonatail-prog/gpu-bootstrap/contents/bootstrap.sh?ref=main" -o "$f"; bash "$f" video'
+curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh | bash -s -- video
 ```
 
-画像環境は最後の `video` を `image` に変更します。初回認証済みテンプレートを再利用すれば、各Podで必要な操作はこの1行だけです。非公開GitHubのrawファイルは認証が必要なため、匿名の `curl URL | bash` では取得できません。取得失敗時の空スクリプト実行を避けるため、一時ファイルへ正常取得してから実行します。
+画像環境は最後の `video` を `image` に変更します。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、上のURLをファイルへ保存して内容を確認してから `bash` で実行してください。
 
 `[STARTED]` はバックグラウンド処理の受付です。構築完了を意味しません。以後ターミナルを閉じても構築は続きます。
 
