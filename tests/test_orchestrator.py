@@ -45,11 +45,11 @@ class OrchestratorTests(unittest.TestCase):
         return o.Builder(self.repo, self.runtime, "image"), content
 
     def test_bundled_profiles_and_registry(self):
-        for name, count in (("video", 3), ("image", 1)):
+        for name, count, expected_nodes in (("video", 3, {"ComfyUI-See-through"}), ("image", 1, set())):
             profile, assets, nodes = o.load_plan(self.repo, name, self.runtime)
             self.assertEqual(len(assets), count)
             self.assertGreater(sum(a.size for a in assets), 0)
-            self.assertFalse(nodes)
+            self.assertEqual(set(nodes), expected_nodes)
             self.assertEqual(profile["name"], name)
 
     def test_unknown_model_and_profile_traversal(self):
