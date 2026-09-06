@@ -13,6 +13,6 @@ disk:
   reserve_gib: 10
 comfyui:
   repo: https://github.com/Comfy-Org/ComfyUI.git
-  revision: d5c1954d5cd4a789bbf84d2b75a955a5a3f93de8 # v0.3.50
+  revision: 15eb748b3ec5f8a0a2d470b7fb280e2d7579f916 # ComfyUI master, 2026-09-06
   port: 8188
   startup_timeout_seconds: 600
