@@ -3,7 +3,7 @@ services:
   comfyui: true
   llm: false
 models: [wan21_t2v_13b, wan21_text_encoder, wan21_vae]
-custom_nodes: []
+custom_nodes: [seethrough]
 workflows: [video_default.json]
 download:
   max_concurrent: 3
