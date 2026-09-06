@@ -28,6 +28,7 @@ class OrchestratorTests(unittest.TestCase):
         for name in ("profiles", "comfy", "scripts"):
             shutil.copytree(o.HERE / name, self.repo / name)
         shutil.copy(o.HERE / "registry.yaml", self.repo / "registry.yaml")
+        shutil.copy(o.HERE / "orchestrator.py", self.repo / "orchestrator.py")
         self.runtime = self.root / "runtime"
         self.runtime.mkdir()
 
