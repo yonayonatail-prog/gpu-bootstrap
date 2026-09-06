@@ -3,7 +3,7 @@ services:
   comfyui: true
   llm: false
 models: []
-custom_nodes: [ComfyUI-TRELLIS2]
+custom_nodes: [ComfyUI-TRELLIS2, ComfyUI-GeometryPack]
 workflows: [trellis2_geometry_texture.json]
 download:
   max_concurrent: 2

@@ -7,3 +7,6 @@ nodes:
   ComfyUI-TRELLIS2:
     repo: https://github.com/PozzettiAndrea/ComfyUI-TRELLIS2.git
     revision: 3e696f2cf174dba141c9efce0205e9a2d87e908a
+  ComfyUI-GeometryPack:
+    repo: https://github.com/PozzettiAndrea/ComfyUI-GeometryPack.git
+    revision: 1cbd14431bc88df27e5368f3e375b6bafd09006e
