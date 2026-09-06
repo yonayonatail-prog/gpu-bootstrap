@@ -188,7 +188,9 @@ class OrchestratorTests(unittest.TestCase):
             for link_id, src, out_slot, dest, in_slot, typ in workflow["links"]:
                 self.assertIn(link_id, nodes[src]["outputs"][out_slot]["links"])
                 self.assertEqual(nodes[dest]["inputs"][in_slot]["link"], link_id)
-                self.assertEqual(nodes[dest]["inputs"][in_slot]["type"], typ)
+                input_type = nodes[dest]["inputs"][in_slot]["type"]
+                accepted_types = {part.strip() for part in input_type.split(",")}
+                self.assertIn(typ, accepted_types)
 
     @unittest.skipUnless(sys.platform == "linux", "POSIX flock integration")
     def test_concurrent_runtime_lock(self):
