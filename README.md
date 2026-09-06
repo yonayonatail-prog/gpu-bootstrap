@@ -44,7 +44,7 @@ ComfyUIのWorkflow一覧から `video_default.json` または `image_default.jso
 | `image` | Stable Diffusion 1.5 FP16 | 512×512、PNG保存 |
 | `llm` | MVP対象外 | 明示的エラーで停止 |
 
-動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。初期構成はネイティブノードだけを使い、Custom Nodeは0個です。拡張用の取得・固定revision・requirements導入処理は実装済みです。
+動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。初期構成はネイティブノードにSee-throughを加えています。See-throughの取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。
 
 ComfyUIはv0.3.50のcommit、PyTorchは2.7.1/cu128、Transformersは4.55.4に固定しています。標準モデルも配布元のcommit・バイト数・SHA-256を固定しています。新モデルを利用するときは対応するComfyUI・依存条件も更新してください。ComfyUIの間接依存パッケージすべてを完全ロックした環境ではありません。
 

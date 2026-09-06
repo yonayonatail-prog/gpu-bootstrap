@@ -120,6 +120,13 @@ class Asset:
         return path.is_file() and path.stat().st_size == self.size and digest(path) == self.sha256
 
 
+# See-through's LayerDiff pipeline uses this small scheduler configuration
+# internally, even when the correct LayerDiff model is selected.  The full
+# Juggernaut checkpoint is not required.
+SEETHROUGH_SCHEDULER_REPO = "frankjoshua/juggernautXL_version6Rundiffusion"
+SEETHROUGH_SCHEDULER_REVISION = "aadab4c7cb252b83a0e2d6f3386b8c837af23932"
+
+
 def load_plan(repo, profile_name, runtime):
     identifier(profile_name)
     profile = load_yaml(repo / "profiles" / f"{profile_name}.yaml")
@@ -280,6 +287,8 @@ class Builder:
         self.comfy = runtime / "ComfyUI"
         self.service_file = runtime / "service.json"
         self.signature = fingerprint({"comfy": self.profile["comfyui"], "nodes": self.nodes,
+                                      "orchestrator": digest(repo / "orchestrator.py"),
+                                      "seethrough_scheduler": [SEETHROUGH_SCHEDULER_REPO, SEETHROUGH_SCHEDULER_REVISION],
                                       "installer": digest(repo / "scripts" / "install_comfy.sh"),
                                       "constraints": digest(repo / "scripts" / "torch-constraints.txt")})
 
@@ -449,6 +458,10 @@ class Builder:
                                   "-c", self.repo / "scripts" / "torch-constraints.txt"], "node_dependencies", node, cwd=directory)
                 self.node_count += 1
                 print(f"Custom Nodes {self.node_count}/{len(self.nodes)}", flush=True)
+            controller_hf = self.runtime / "controller-venv" / "bin" / "hf"
+            self.command([controller_hf, "download", SEETHROUGH_SCHEDULER_REPO,
+                          "scheduler/scheduler_config.json", "--revision", SEETHROUGH_SCHEDULER_REVISION],
+                         "node_dependencies", "See-through scheduler")
             self.command([self.py, "-m", "pip", "check"], "dependencies", "dependency consistency")
             atomic_json(self.runtime / "environment.json", {"signature": self.signature})
         self.node_count = len(self.nodes)
