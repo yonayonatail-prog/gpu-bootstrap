@@ -4,3 +4,6 @@ nodes:
   ComfyUI-See-through:
     repo: https://github.com/jtydhr88/ComfyUI-See-through.git
     revision: 98d754bf04f668647919ab750eccb0e0640faa81
+  ComfyUI-TRELLIS2:
+    repo: https://github.com/PozzettiAndrea/ComfyUI-TRELLIS2.git
+    revision: 3e696f2cf174dba141c9efce0205e9a2d87e908a

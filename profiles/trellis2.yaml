@@ -1,0 +1,18 @@
+name: trellis2
+services:
+  comfyui: true
+  llm: false
+models: []
+custom_nodes: [ComfyUI-TRELLIS2]
+workflows: [trellis2_geometry_texture.json]
+download:
+  max_concurrent: 2
+  retries: 3
+disk:
+  install_budget_gib: 40
+  reserve_gib: 10
+comfyui:
+  repo: https://github.com/Comfy-Org/ComfyUI.git
+  revision: d5c1954d5cd4a789bbf84d2b75a955a5a3f93de8 # v0.3.50
+  port: 8188
+  startup_timeout_seconds: 600
