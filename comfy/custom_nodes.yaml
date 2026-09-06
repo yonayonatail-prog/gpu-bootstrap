@@ -1,6 +1,6 @@
 # Trusted repositories are pinned to exact commit SHAs.
 # Nodes may declare requirements.txt; arbitrary install.py is never run.
 nodes:
-  seethrough:
+  ComfyUI-See-through:
     repo: https://github.com/jtydhr88/ComfyUI-See-through.git
     revision: 98d754bf04f668647919ab750eccb0e0640faa81
