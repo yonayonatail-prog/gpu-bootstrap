@@ -458,10 +458,11 @@ class Builder:
                                   "-c", self.repo / "scripts" / "torch-constraints.txt"], "node_dependencies", node, cwd=directory)
                 self.node_count += 1
                 print(f"Custom Nodes {self.node_count}/{len(self.nodes)}", flush=True)
-            controller_hf = self.runtime / "controller-venv" / "bin" / "hf"
-            self.command([controller_hf, "download", SEETHROUGH_SCHEDULER_REPO,
-                          "scheduler/scheduler_config.json", "--revision", SEETHROUGH_SCHEDULER_REVISION],
-                         "node_dependencies", "See-through scheduler")
+            if "ComfyUI-See-through" in self.nodes:
+                controller_hf = self.runtime / "controller-venv" / "bin" / "hf"
+                self.command([controller_hf, "download", SEETHROUGH_SCHEDULER_REPO,
+                              "scheduler/scheduler_config.json", "--revision", SEETHROUGH_SCHEDULER_REVISION],
+                             "node_dependencies", "See-through scheduler")
             self.command([self.py, "-m", "pip", "check"], "dependencies", "dependency consistency")
             atomic_json(self.runtime / "environment.json", {"signature": self.signature})
         self.node_count = len(self.nodes)

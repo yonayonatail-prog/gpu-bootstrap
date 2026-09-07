@@ -45,7 +45,8 @@ class OrchestratorTests(unittest.TestCase):
         return o.Builder(self.repo, self.runtime, "image"), content
 
     def test_bundled_profiles_and_registry(self):
-        for name, count, expected_nodes in (("video", 3, {"ComfyUI-See-through"}), ("image", 1, set()),
+        for name, count, expected_nodes in (("base", 0, set()), ("seethrough", 0, {"ComfyUI-See-through"}),
+                                            ("video", 3, set()), ("image", 1, set()),
                                             ("trellis2", 0, {"ComfyUI-TRELLIS2", "ComfyUI-GeometryPack"})):
             profile, assets, nodes = o.load_plan(self.repo, name, self.runtime)
             self.assertEqual(len(assets), count)
@@ -218,7 +219,7 @@ class OrchestratorTests(unittest.TestCase):
         env = dict(os.environ, GH_TOKEN="test-token", PATH=str(fakebin) + os.pathsep + os.environ["PATH"])
         result = subprocess.run(["bash", "-c", command], env=env, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("PROFILE=video", result.stdout)
+        self.assertIn("PROFILE=base", result.stdout)
         self.assertNotIn("test-token", result.stdout + result.stderr)
         curl.write_text('#!/bin/sh\nexit 22\n')
         result = subprocess.run(["bash", "-c", command], env=env, text=True, capture_output=True)

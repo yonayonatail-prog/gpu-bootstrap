@@ -1,10 +1,10 @@
-name: video
+name: base
 services:
   comfyui: true
   llm: false
-models: [wan21_t2v_13b, wan21_text_encoder, wan21_vae]
+models: []
 custom_nodes: []
-workflows: [video_default.json]
+workflows: []
 download:
   max_concurrent: 3
   retries: 3
@@ -13,6 +13,6 @@ disk:
   reserve_gib: 5
 comfyui:
   repo: https://github.com/Comfy-Org/ComfyUI.git
-  revision: d5c1954d5cd4a789bbf84d2b75a955a5a3f93de8 # v0.3.50
+  revision: d5c1954d5cd4a789bbf84d2b75a955a5a3f93de8
   port: 8188
   startup_timeout_seconds: 300

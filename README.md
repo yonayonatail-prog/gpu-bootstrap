@@ -22,10 +22,10 @@ Runpodの **Bashターミナル** で実行します。公開リポジトリな�
 
 ```bash
 curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh -o bootstrap.sh
-bash bootstrap.sh video
+bash bootstrap.sh base
 ```
 
-画像環境は最後の `video` を `image` に変更します。TRELLIS2 の画像→3D環境は `trellis2` に変更します。TRELLIS2 固有の Pod 条件と操作は [TRELLIS2_RUNPOD.md](TRELLIS2_RUNPOD.md) を参照してください。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、保存した `bootstrap.sh` の内容を確認してから実行してください。
+既定の `base` はモデルも Custom Node も取得しない最小の ComfyUI 構成です。SeeThrough を使う場合は最後を `seethrough` に、Wan 動画生成を使う場合は `video` に、画像生成は `image` に変更します。TRELLIS2 の画像→3D環境は `trellis2` に変更します。SeeThrough の操作は [SEE_THROUGH_RUNPOD.md](SEE_THROUGH_RUNPOD.md)、TRELLIS2 固有の Pod 条件と操作は [TRELLIS2_RUNPOD.md](TRELLIS2_RUNPOD.md) を参照してください。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、保存した `bootstrap.sh` の内容を確認してから実行してください。
 
 RunpodをClineのLLMサーバーとして使う場合は、Runpod Secretまたは環境変数にAPIキーを設定してから `agent` を指定します。LLM APIはPod内の `127.0.0.1:8000` だけで待ち受けるため、RunpodのHTTPポートを追加公開する必要はありません。
 
@@ -53,19 +53,21 @@ tail -f /workspace/runtime/logs/bootstrap.log
 
 `[READY]` が出たらRunpodの **Connect → HTTP Service :8188** から開きます。`0.0.0.0` は待ち受けアドレスであり、手元PCで開くURLではありません。処理時間は回線・配布元・GPU・依存導入に左右されます。数十分は目安であり保証ではありません。
 
-ComfyUIのWorkflow一覧から、使うprofileに対応する `video_default.json`、`image_default.json`、または `trellis2_geometry_texture.json` を開いてRunします。**起動時に勝手に生成ジョブを投入することはありません。** READYはCUDAデバイス、HTTP応答、ワークフローに必要なノードの存在までの確認です。実際の生成成功・画質までは保証しません。
+ComfyUIのWorkflow一覧から、使うprofileに対応する `seethrough_basic.json`、`video_default.json`、`image_default.json`、または `trellis2_geometry_texture.json` を開いてRunします。`base` には同梱ワークフローはありません。**起動時に勝手に生成ジョブを投入することはありません。** READYはCUDAデバイス、HTTP応答、ワークフローに必要なノードの存在までの確認です。実際の生成成功・画質までは保証しません。
 
 ## 標準プロファイル
 
 | profile | 内容 | 同梱ワークフロー |
 | --- | --- | --- |
+| `base` | モデル・Custom Node なしの最小 ComfyUI | なし |
+| `seethrough` | SeeThrough によるアニメ調キャラクターのレイヤー・深度分解 | PSD / Depth PSD、合成プレビュー |
 | `video` | Wan 2.1 T2V 1.3B FP16 / UMT5 FP8 scaled / Wan VAE | 832×480・33フレーム・16fps、animated WebP保存 |
 | `image` | Stable Diffusion 1.5 FP16 | 512×512、PNG保存 |
 | `trellis2` | TRELLIS.2 を使う ComfyUI の画像→3D環境 | PBR テクスチャ付き GLB、3Dプレビュー |
 | `agent` | vLLM OpenAI互換API | Cline等からSSHトンネル経由で利用 |
 | `llm` | 旧予約名 | 明示的エラーで停止 |
 
-動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。初期構成はネイティブノードにSee-throughを加えています。See-throughの取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。
+動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。SeeThrough は `seethrough` プロファイルでのみ導入します。SeeThrough の取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。
 
 ComfyUIはv0.3.50のcommit、PyTorchは2.7.1/cu128、Transformersは4.55.4に固定しています。標準モデルも配布元のcommit・バイト数・SHA-256を固定しています。新モデルを利用するときは対応するComfyUI・依存条件も更新してください。ComfyUIの間接依存パッケージすべてを完全ロックした環境ではありません。
 

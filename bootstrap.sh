@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Download this file first, then run: bash bootstrap.sh video
+# Download this file first, then run: bash bootstrap.sh base
 set -Eeuo pipefail
 umask 077
 export RUNTIME_ROOT="${RUNTIME_ROOT:-/workspace/runtime}"
 export GPU_BOOTSTRAP_REPO="${GPU_BOOTSTRAP_REPO:-yonayonatail-prog/gpu-bootstrap}"
 export GPU_BOOTSTRAP_REF="${GPU_BOOTSTRAP_REF:-main}"
-profile="${1:-video}"
+profile="${1:-base}"
 [[ "$profile" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo '[FAILED] Invalid profile name'; exit 1; }
 [[ "$RUNTIME_ROOT" == /* && "$RUNTIME_ROOT" != / ]] || { echo '[FAILED] RUNTIME_ROOT must be an absolute non-root path'; exit 1; }
 [[ "$GPU_BOOTSTRAP_REPO" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]] || exit 1
