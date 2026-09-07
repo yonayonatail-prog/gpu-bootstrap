@@ -3,7 +3,7 @@ set -Eeuo pipefail
 umask 077
 
 runtime="${1:?runtime root is required}"
-model="${AGENT_MODEL:-Qwen/Qwen2.5-Coder-7B-Instruct}"
+model="${AGENT_MODEL:-Qwen/Qwen3.8-27B}"
 port="${AGENT_PORT:-8000}"
 api_key="${AGENT_API_KEY:-change-me}"
 venv="$runtime/llm-venv"

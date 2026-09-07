@@ -31,9 +31,11 @@ RunpodをClineのLLMサーバーとして使う場合は、Runpod Secretまた�
 
 ```bash
 export AGENT_API_KEY='replace-with-a-long-random-key'
-export AGENT_MODEL='Qwen/Qwen2.5-Coder-7B-Instruct'
+export AGENT_MODEL='Qwen/Qwen3.8-27B'
 curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh -o bootstrap.sh && bash bootstrap.sh agent
 ```
+
+Qwen3.8-27Bは約28BパラメーターのBF16モデルです。量子化なしで使う場合は、VRAM 80 GB級のGPUを推奨します。VRAMが足りない場合は、量子化済みモデルを `AGENT_MODEL` に指定し、モデル配布元の手順に合わせて `AGENT_VLLM_ARGS` を設定してください。
 
 起動後、手元PCでRunpodのSSH接続情報を使ってトンネルを張ります。`<runpod-host>` と `<runpod-port>` はRunpodの **Connect → SSH** に表示される値です。
 
