@@ -16,15 +16,32 @@ Gitには設定・コード・ワークフローを保存します。モデル�
 
 参考: [Runpod Secrets](https://docs.runpod.io/pods/templates/secrets)、[HTTPポート](https://docs.runpod.io/pods/configuration/expose-ports)、[GitHubトークン作成](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
 
-## 毎回貼り付ける1行
+## 毎回貼り付ける手順
 
-Runpodの **Bashターミナル** で実行します。公開リポジトリなのでGitHubトークンは不要です。
+Runpodの **Bashターミナル** で実行します。公開リポジトリなのでGitHubトークンは不要です。`bootstrap.sh` は自分自身を一時ファイルへコピーしてバックグラウンド実行するため、標準入力から `bash -s` へ直接渡さず、いったんファイルへ保存してから実行してください。
 
 ```bash
-curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh | bash -s -- video
+curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh -o bootstrap.sh
+bash bootstrap.sh video
 ```
 
-画像環境は最後の `video` を `image` に変更します。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、上のURLをファイルへ保存して内容を確認してから `bash` で実行してください。
+画像環境は最後の `video` を `image` に変更します。TRELLIS2 の画像→3D環境は `trellis2` に変更します。TRELLIS2 固有の Pod 条件と操作は [TRELLIS2_RUNPOD.md](TRELLIS2_RUNPOD.md) を参照してください。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、保存した `bootstrap.sh` の内容を確認してから実行してください。
+
+RunpodをClineのLLMサーバーとして使う場合は、Runpod Secretまたは環境変数にAPIキーを設定してから `agent` を指定します。LLM APIはPod内の `127.0.0.1:8000` だけで待ち受けるため、RunpodのHTTPポートを追加公開する必要はありません。
+
+```bash
+export AGENT_API_KEY='replace-with-a-long-random-key'
+export AGENT_MODEL='Qwen/Qwen2.5-Coder-7B-Instruct'
+curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh -o bootstrap.sh && bash bootstrap.sh agent
+```
+
+起動後、手元PCでRunpodのSSH接続情報を使ってトンネルを張ります。`<runpod-host>` と `<runpod-port>` はRunpodの **Connect → SSH** に表示される値です。
+
+```bash
+ssh -N -L 8000:127.0.0.1:8000 <runpod-host> -p <runpod-port>
+```
+
+ClineではプロバイダーをOpenAI互換、Base URLを `http://127.0.0.1:8000/v1`、モデル名を `agent`、APIキーをRunpodに設定した `AGENT_API_KEY` とします。音声入力はWindowsの音声入力（`Win+H`）をClineの入力欄で利用できます。
 
 `[STARTED]` はバックグラウンド処理の受付です。構築完了を意味しません。以後ターミナルを閉じても構築は続きます。
 
@@ -34,7 +51,7 @@ tail -f /workspace/runtime/logs/bootstrap.log
 
 `[READY]` が出たらRunpodの **Connect → HTTP Service :8188** から開きます。`0.0.0.0` は待ち受けアドレスであり、手元PCで開くURLではありません。処理時間は回線・配布元・GPU・依存導入に左右されます。数十分は目安であり保証ではありません。
 
-ComfyUIのWorkflow一覧から `video_default.json` または `image_default.json` を開いてRunします。**起動時に勝手に生成ジョブを投入することはありません。** READYはCUDAデバイス、HTTP応答、ワークフローに必要なノードの存在までの確認です。実際の生成成功・画質までは保証しません。
+ComfyUIのWorkflow一覧から、使うprofileに対応する `video_default.json`、`image_default.json`、または `trellis2_geometry_texture.json` を開いてRunします。**起動時に勝手に生成ジョブを投入することはありません。** READYはCUDAデバイス、HTTP応答、ワークフローに必要なノードの存在までの確認です。実際の生成成功・画質までは保証しません。
 
 ## 標準プロファイル
 
@@ -42,7 +59,9 @@ ComfyUIのWorkflow一覧から `video_default.json` または `image_default.jso
 | --- | --- | --- |
 | `video` | Wan 2.1 T2V 1.3B FP16 / UMT5 FP8 scaled / Wan VAE | 832×480・33フレーム・16fps、animated WebP保存 |
 | `image` | Stable Diffusion 1.5 FP16 | 512×512、PNG保存 |
-| `llm` | MVP対象外 | 明示的エラーで停止 |
+| `trellis2` | TRELLIS.2 を使う ComfyUI の画像→3D環境 | PBR テクスチャ付き GLB、3Dプレビュー |
+| `agent` | vLLM OpenAI互換API | Cline等からSSHトンネル経由で利用 |
+| `llm` | 旧予約名 | 明示的エラーで停止 |
 
 動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。初期構成はネイティブノードにSee-throughを加えています。See-throughの取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。
 
@@ -76,6 +95,7 @@ ComfyUIはv0.3.50のcommit、PyTorchは2.7.1/cu128、Transformersは4.55.4に固
   repository/                 このGitリポジトリの取得先
   controller-venv/            オーケストレーターとhf CLI
   comfy-venv/                 ComfyUIのPython環境
+  llm-venv/                   agent用vLLM環境
   ComfyUI/models/             検証済みモデル
   ComfyUI/output/             生成した画像・動画
   ComfyUI/user/default/workflows/
@@ -86,6 +106,7 @@ ComfyUIはv0.3.50のcommit、PyTorchは2.7.1/cu128、Transformersは4.55.4に固
   logs/<model>.log            backend詳細、URL/tokenはマスク
   status.json                全体状態、READY/FAILEDを含む
   service.json               管理中のComfyUIプロセス情報
+  llm-service.json            管理中のagent APIプロセス情報
 ```
 
 **v0.1時点では外部ストレージへの自動転送は未接続です。成果物はPod内に保存されます。** Podを削除する前に必ずダウンロードしてください。[Runpodのディスク寿命](https://docs.runpod.io/pods/storage/types)
@@ -161,4 +182,4 @@ bash -n bootstrap.sh scripts/install_comfy.sh scripts/install_llm.sh
 - 取得中断後のhf/aria2実通信での再開、失敗からの復帰、実際の所要時間・VRAM。
 - 外部成果物転送を追加した後、転送完了を確認してからPodを削除できること。
 
-MVPの対象外: LLM起動、CivitAI専用backend、外部成果物転送、Pod自動作成・削除、モデル検索GUI、Docker image build、間接依存の完全ロック。追加要件は設定とbackendを分離したまま拡張できます。
+MVPの対象外: `llm` プロファイルの旧方式、CivitAI専用backend、外部成果物転送、Pod自動作成・削除、モデル検索GUI、Docker image build、間接依存の完全ロック。`agent` は独立したvLLMランチャーで、モデル取得・推論性能・Pod自動作成までは管理しません。

@@ -73,4 +73,7 @@ if [[ ! -f "$controller/requirements.stamp" || $(cat "$controller/requirements.s
     printf '%s' "$signature" >"$controller/requirements.stamp"
 fi
 stage=orchestrator
+if [[ "$profile" == agent ]]; then
+    exec bash "$repo/scripts/install_llm.sh" "$RUNTIME_ROOT"
+fi
 "$controller/bin/python" -u "$repo/orchestrator.py" "$profile" --runtime-root "$RUNTIME_ROOT"
