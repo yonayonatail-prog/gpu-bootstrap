@@ -31,11 +31,12 @@ RunpodをClineのLLMサーバーとして使う場合は、Runpod Secretまた�
 
 ```bash
 export AGENT_API_KEY='replace-with-a-long-random-key'
-export AGENT_MODEL='Qwen/Qwen3.8-27B'
+export AGENT_MODEL='unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M'
+export AGENT_TOKENIZER='Qwen/Qwen3.8-27B'
 curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh -o bootstrap.sh && bash bootstrap.sh agent
 ```
 
-Qwen3.8-27Bは約28BパラメーターのBF16モデルです。量子化なしで使う場合は、VRAM 80 GB級のGPUを推奨します。VRAMが足りない場合は、量子化済みモデルを `AGENT_MODEL` に指定し、モデル配布元の手順に合わせて `AGENT_VLLM_ARGS` を設定してください。
+既定は `unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M` の Q4 GGUF 量子化です。vLLM の GGUF プラグインと、公式ベースモデルの tokenizer を自動導入・指定します。Q4 は BF16 より大幅に必要 VRAM を抑えますが、コンテキスト長と KV キャッシュにも VRAM が必要です。VRAM が不足する場合は `AGENT_VLLM_ARGS` に `--max-model-len` や `--gpu-memory-utilization` を指定して調整してください。
 
 起動後、手元PCでRunpodのSSH接続情報を使ってトンネルを張ります。`<runpod-host>` と `<runpod-port>` はRunpodの **Connect → SSH** に表示される値です。
 
@@ -44,6 +45,8 @@ ssh -N -L 8000:127.0.0.1:8000 <runpod-host> -p <runpod-port>
 ```
 
 ClineではプロバイダーをOpenAI互換、Base URLを `http://127.0.0.1:8000/v1`、モデル名を `agent`、APIキーをRunpodに設定した `AGENT_API_KEY` とします。音声入力はWindowsの音声入力（`Win+H`）をClineの入力欄で利用できます。
+
+Runpod の Pod 作成、API キー、SSH トンネル、VS Code / Cline の設定、接続確認までを省略せずに進める場合は [QWEN38_CLINE_RUNPOD.md](QWEN38_CLINE_RUNPOD.md) を参照してください。
 
 `[STARTED]` はバックグラウンド処理の受付です。構築完了を意味しません。以後ターミナルを閉じても構築は続きます。
 

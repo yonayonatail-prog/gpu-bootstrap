@@ -3,7 +3,8 @@ set -Eeuo pipefail
 umask 077
 
 runtime="${1:?runtime root is required}"
-model="${AGENT_MODEL:-Qwen/Qwen3.8-27B}"
+model="${AGENT_MODEL:-unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M}"
+tokenizer="${AGENT_TOKENIZER:-Qwen/Qwen3.8-27B}"
 port="${AGENT_PORT:-8000}"
 api_key="${AGENT_API_KEY:-change-me}"
 venv="$runtime/llm-venv"
@@ -19,9 +20,10 @@ mkdir -p "$logs"
 if [[ ! -x "$venv/bin/python" ]]; then
 	python3 -m venv "$venv"
 fi
-vllm_package="${AGENT_VLLM_PACKAGE:-vllm}"
+vllm_package="${AGENT_VLLM_PACKAGE:-vllm vllm-gguf-plugin}"
 if [[ ! -f "$stamp" || "$(cat "$stamp")" != "$vllm_package" ]]; then
-	"$venv/bin/python" -m pip install --disable-pip-version-check --upgrade "$vllm_package"
+	read -r -a vllm_packages <<<"$vllm_package"
+	"$venv/bin/python" -m pip install --disable-pip-version-check --upgrade "${vllm_packages[@]}"
 	printf '%s' "$vllm_package" >"$stamp"
 fi
 
@@ -44,12 +46,13 @@ nohup "$venv/bin/python" -m vllm.entrypoints.openai.api_server \
 	--host 127.0.0.1 \
 	--port "$port" \
 	--model "$model" \
+	--tokenizer "$tokenizer" \
 	--served-model-name agent \
 	--api-key "$api_key" \
 	${AGENT_VLLM_ARGS:-} \
 	</dev/null >>"$logs/llm.log" 2>&1 &
 pid=$!
-printf '{"pid":%s,"port":%s,"model":"%s"}\n' "$pid" "$port" "${model//\/\\}" >"$service_file"
+printf '{"pid":%s,"port":%s,"model":"%s","tokenizer":"%s"}\n' "$pid" "$port" "${model//\/\\}" "${tokenizer//\/\\}" >"$service_file"
 echo "[STARTED] LLM service PID $pid"
 echo "Progress: tail -f '$logs/llm.log'"
 echo "SSH tunnel: ssh -N -L 8000:127.0.0.1:$port <runpod-host> -p <runpod-port>"
