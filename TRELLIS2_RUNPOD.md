@@ -71,8 +71,64 @@ tail -n 200 /workspace/runtime/logs/comfyui.log
 
 ## 4. ComfyUI を開く
 
-RunPod の **Connect → HTTP Service :8188** を開きます。`0.0.0.0:8188` は Pod 内の
-待受アドレスであり、PC のブラウザに直接入力する URL ではありません。
+`[READY]` の後、RunPod の Pod 画面にある **HTTP services** の
+**Port 8188 → HTTP Service** を開きます。開くべきアドレスは、通常
+`https://<Pod ID>-8188.proxy.runpod.net/` のような **`https://` で始まり
+`proxy.runpod.net` を含む URL** です。
+
+起動ログに出る次の表示は、コンテナ*内*の待受先を示すだけです。PC のブラウザや
+Codex のブラウザへコピーして開いてはいけません。
+
+```text
+To see the GUI go to: http://0.0.0.0:8188
+```
+
+アドレスバーが `http://0.0.0.0:8188/` のままで「このサイトにアクセスできません」
+となる場合は、ComfyUI の起動失敗ではありません。RunPod の HTTP Service リンクでは
+なく、コンテナ内アドレスを開いています。Pod 画面へ戻り、Port 8188 の **HTTP Service**
+リンクを開き直します。HTTP services が `Ready` になるまで待ちます。
+
+RunPod 側のリンクを開いても画面が出ない場合だけ、Pod のターミナルで次を実行します。
+
+```bash
+curl --fail --silent http://127.0.0.1:8188/system_stats
+```
+
+JSON が返れば ComfyUI は Pod 内で起動済みなので、確認対象は RunPod の HTTP Service
+（Port 8188 の公開状態・リンク先）です。接続エラーになる場合は、次を採取して
+トラブルシュートします。
+
+```bash
+tail -n 200 /workspace/runtime/logs/comfyui.log
+tail -n 200 /workspace/runtime/logs/bootstrap.log
+```
+
+初回起動ログの `MISSING -- run install.py`、`No module named 'CGAL'`、または
+`pytorch with cu130 or higher` の警告だけでは、構築失敗とは判断しません。このプロファイル
+では必要な TRELLIS2 ノードが登録されて `READY` になることを確認します。`install.py` や
+PyTorch の更新を独断で実行すると、固定済みの依存関係を崩す可能性があるため、実行時に
+必要なノードが失敗した場合に限ってログを確認して対処します。
+
+### `LoadTrellis2Models` が初回ダウンロードで失敗する場合
+
+`hf_hub_download() got an unexpected keyword argument 'tqdm_class'` は、TRELLIS2
+ノードと Hugging Face Hub クライアントの進捗表示APIの互換性不整合です。GPUメモリ、
+Hugging Face の認証、モデルの容量不足が原因ではありません。現行の起動スクリプトは
+この引数を対応していないクライアントでは自動的に無視する互換処理を導入します。
+
+すでに構築済みのPodでは、次を1回だけ実行してからComfyUIを再起動します。
+
+```bash
+sed -i 's/, tqdm_class=_comfy_tqdm()//g' \
+  /workspace/runtime/ComfyUI/custom_nodes/ComfyUI-TRELLIS2/nodes/stages.py
+kill "$(python3 -c 'import json; print(json.load(open("/workspace/runtime/service.json"))["pid"])')"
+bash bootstrap.sh trellis2
+```
+
+最後のコマンドが `[STARTED]` を表示したら、`tail -f
+/workspace/runtime/logs/bootstrap.log` で再度 `[READY]` になることを確認します。その後、
+ブラウザを再読み込みして同じワークフローをキュー実行します。`install.py` はこのエラーの
+修正ではないため実行しません。
 
 ワークフロー一覧から `trellis2_geometry_texture.json` を開きます。見当たらない場合は
 Pod のターミナルで次を確認します。
@@ -107,6 +163,8 @@ ls -l /workspace/runtime/ComfyUI/user/default/workflows/trellis2_geometry_textur
 | `CUDA unavailable` | NVIDIA GPU Pod か、GPU ドライバを含むテンプレートか |
 | `disk_preflight` | `/workspace` を 80 GB 以上に増やす |
 | `service_health` | `comfyui.log` と HTTP 8188 の公開設定 |
+| `http://0.0.0.0:8188` が開けない | 正常な挙動。RunPod の Port 8188 → HTTP Service が開く `https://…proxy.runpod.net` を使う |
+| HTTP Service が `Ready`、`curl 127.0.0.1:8188/system_stats` も成功 | ComfyUI は起動済み。RunPod の公開リンクまたはブラウザ側を確認する |
 | 初回キューが進まない | ComfyUI の画面・`comfyui.log` を確認。初回の重み取得中は待つ |
 | メモリ不足 | 512 のまま試し、他の GPU プロセスを止める。24 GB 未満の GPU は使わない |
 
