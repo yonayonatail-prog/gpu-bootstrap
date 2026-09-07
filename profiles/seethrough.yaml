@@ -3,13 +3,17 @@ services:
   comfyui: true
   llm: false
 models: []
+prefetch_huggingface:
+  - layerdifforg/seethroughv0.0.2_layerdiff3d
+  - layerdifforg/seethroughv0.0.1_marigold
 custom_nodes: [ComfyUI-See-through]
 workflows: [seethrough_basic.json]
 download:
   max_concurrent: 3
   retries: 3
 disk:
-  install_budget_gib: 20
+  # LayerDiff (~10.2 GB) and Marigold (~3.3 GB) are cached before ComfyUI starts.
+  install_budget_gib: 35
   reserve_gib: 5
 comfyui:
   repo: https://github.com/Comfy-Org/ComfyUI.git

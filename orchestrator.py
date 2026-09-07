@@ -88,6 +88,12 @@ def identifier(value):
     return value
 
 
+def huggingface_repo(value):
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value):
+        raise ValueError("Invalid Hugging Face repository ID")
+    return value
+
+
 def https_url(value):
     if not isinstance(value, str) or any(ord(c) < 32 for c in value):
         raise ValueError("URL cannot contain control characters")
@@ -136,6 +142,13 @@ def load_plan(repo, profile_name, runtime):
         raise Failure("profile", profile_name, "LLM backend is not implemented in v0.1.", "Use video or image.")
     if profile.get("services") != {"comfyui": True, "llm": False}:
         raise ValueError("MVP profiles require services: {comfyui: true, llm: false}")
+    prefetch = profile.get("prefetch_huggingface", [])
+    if not isinstance(prefetch, list):
+        raise ValueError("prefetch_huggingface must be a list")
+    for model_repo in prefetch:
+        huggingface_repo(model_repo)
+    if len(prefetch) != len(set(prefetch)):
+        raise ValueError("Duplicate Hugging Face prefetch repository")
     registry = load_yaml(repo / "registry.yaml").get("models", {})
     nodes = load_yaml(repo / "comfy" / "custom_nodes.yaml").get("nodes", {})
     assets, selected_nodes, targets = [], {}, set()
@@ -412,6 +425,21 @@ class Builder:
         except Exception as exc:
             raise Failure(stage, item, redact(exc)) from exc
 
+    def prefetch_huggingface(self):
+        repositories = self.profile.get("prefetch_huggingface", [])
+        if not repositories:
+            return
+        hf = self.runtime / "controller-venv" / "bin" / "hf"
+        for model_repo in repositories:
+            try:
+                # Keep this in the default cache of the service user. See-through's
+                # loaders resolve repo IDs through that cache and expose no path widget.
+                run_command([hf, "download", model_repo], self.logs / "prefetch_huggingface.log",
+                            env={"HF_HUB_DISABLE_XET": "1", "HF_HUB_DOWNLOAD_TIMEOUT": "120"})
+            except Exception as exc:
+                raise Failure("model_prefetch", model_repo, redact(exc),
+                              "Check Hugging Face connectivity and disk space, then rerun the same bootstrap command.") from exc
+
     def git_revision(self, directory):
         if not (directory / ".git").exists():
             return None
@@ -547,6 +575,7 @@ class Builder:
         self.install()
         disk_preflight(self.runtime, self.assets, self.profile, installed=True)
         self.downloads()
+        self.prefetch_huggingface()
         self.start_service()
 
 
