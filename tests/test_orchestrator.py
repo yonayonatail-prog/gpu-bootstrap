@@ -45,10 +45,12 @@ class OrchestratorTests(unittest.TestCase):
         return o.Builder(self.repo, self.runtime, "image"), content
 
     def test_bundled_profiles_and_registry(self):
-        for name, count, expected_nodes in (("video", 3, {"ComfyUI-See-through"}), ("image", 1, set())):
+        for name, count, expected_nodes in (("video", 3, {"ComfyUI-See-through"}), ("image", 1, set()),
+                                            ("trellis2", 0, {"ComfyUI-TRELLIS2", "ComfyUI-GeometryPack"})):
             profile, assets, nodes = o.load_plan(self.repo, name, self.runtime)
             self.assertEqual(len(assets), count)
-            self.assertGreater(sum(a.size for a in assets), 0)
+            if count:
+                self.assertGreater(sum(a.size for a in assets), 0)
             self.assertEqual(set(nodes), expected_nodes)
             self.assertEqual(profile["name"], name)
 
