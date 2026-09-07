@@ -70,7 +70,7 @@ ComfyUIのWorkflow一覧から、使うprofileに対応する `seethrough_basic.
 | `agent` | vLLM OpenAI互換API | Cline等からSSHトンネル経由で利用 |
 | `llm` | 旧予約名 | 明示的エラーで停止 |
 
-動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。SeeThrough は `seethrough` プロファイルでのみ導入します。SeeThrough の取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。
+動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。SeeThrough は `seethrough` プロファイルでのみ導入します。SeeThrough の取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。LayerDiff本体とMarigold深度モデルの自動取得が失敗するPodでは、[SeeThrough手順書の事前取得手順](SEE_THROUGH_RUNPOD.md#81-hugging-face-接続に失敗する場合モデルを事前取得する)を実行してください。
 
 ComfyUIはv0.3.50のcommit、PyTorchは2.7.1/cu128、Transformersは4.55.4に固定しています。標準モデルも配布元のcommit・バイト数・SHA-256を固定しています。新モデルを利用するときは対応するComfyUI・依存条件も更新してください。ComfyUIの間接依存パッケージすべてを完全ロックした環境ではありません。
 

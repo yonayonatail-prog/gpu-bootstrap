@@ -131,10 +131,38 @@ group offload を有効にしても失敗する場合は、より大きな VRAM 
 | --- | --- |
 | SeeThrough ノードがない | `bootstrap.log` が `[READY]` か確認し、ブラウザを強制再読み込みします。`/workspace/runtime/logs/comfyui.log` に import エラーがないか確認します。 |
 | 初回実行が長い | モデル自動ダウンロード中です。通信と空き容量を確認し、完了を待ちます。事前にモデルを置いた場合は `auto_download=false` にできます。 |
+| `SeeThrough_LoadLayerDiffModel` / `SeeThrough_LoadDepthModel` が Hugging Face 接続エラーになる | Web Terminal で「8.1」の2コマンドを完了させます。Loader にモデルパス欄がなくても、標準HFキャッシュから自動認識されます。 |
 | VRAM / CUDA out of memory | 「7. VRAM が足りないとき」の順に解像度・深度解像度・offload を調整します。 |
 | PSD のダウンロードボタンが出ない | `Post Process` の `parts` が `SeeThrough Save PSD` へ接続されているか確認します。ブラウザのダウンロード許可も確認します。 |
 | レイヤーに欠け・混ざりがある | 単純な背景・正面寄り・人物一人の画像に替え、seed を変えて再実行します。結果は自動分解の下絵として扱い、Live2D で補正します。 |
 | Pod を消したら成果物がない | この構成は外部ストレージへ自動転送しません。削除前に PSD と出力をダウンロードします。 |
+
+### 8.1 Hugging Face 接続に失敗する場合：モデルを事前取得する
+
+`SeeThrough_LoadLayerDiffModel` と `SeeThrough_LoadDepthModel` は、モデルパスを入力する
+UIがない構成です。通常は初回実行時に自動取得しますが、Pod のネットワーク接続が失敗した
+場合は、**ComfyUI と同じユーザー**で Web Terminal を開き、次を順に実行します。
+
+```bash
+HF_HUB_DISABLE_XET=1 hf download layerdifforg/seethroughv0.0.2_layerdiff3d
+HF_HUB_DISABLE_XET=1 hf download layerdifforg/seethroughv0.0.1_marigold
+```
+
+`layerdiff3d` は約 10.2 GB、`marigold` は約 3.3 GBです。ダウンロード中はターミナルを
+閉じず、少なくとも 20 GB の空き容量を確保します。上記は既定の Hugging Face キャッシュ
+（root で実行した場合は `/root/.cache/huggingface/`）へ保存するため、ComfyUI の Loader が
+次の実行時に自動で見つけます。モデル用フォルダのパスを単独で入力・実行する必要はありません。
+
+`hf: command not found` の場合は、同じ順で次を実行します。
+
+```bash
+HF_HUB_DISABLE_XET=1 python -c "from huggingface_hub import snapshot_download; snapshot_download('layerdifforg/seethroughv0.0.2_layerdiff3d')"
+HF_HUB_DISABLE_XET=1 python -c "from huggingface_hub import snapshot_download; snapshot_download('layerdifforg/seethroughv0.0.1_marigold')"
+```
+
+完了後は ComfyUI を再起動せず、同じワークフローをもう一度 Queue します。キャッシュを
+別ユーザーで作成した場合は、ComfyUI を起動しているユーザーの `HF_HOME` を同じキャッシュへ
+向ける必要があります。
 
 ## 9. ローカルモデル運用（任意）
 
