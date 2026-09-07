@@ -29,7 +29,8 @@ RunPod で CUDA 対応の Ubuntu 系テンプレートを選び、上の条件�
 次の 1 行をそのまま実行します。
 
 ```bash
-curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh | bash -s -- trellis2
+curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh -o bootstrap.sh
+bash bootstrap.sh trellis2
 ```
 
 `[STARTED]` はバックグラウンドで構築を受け付けた、という意味です。完了では
