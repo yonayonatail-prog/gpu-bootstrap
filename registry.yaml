@@ -36,3 +36,30 @@ models:
       - path: v1-5-pruned-emaonly-fp16.safetensors
         size_bytes: 2132696762
         sha256: e9476a13728cd75d8279f6ec8bad753a66a1957ca375a1464dc63b37db6e3916
+  qwen_image_edit_2511_fp8mixed:
+    source: huggingface
+    repo: Comfy-Org/Qwen-Image-Edit_ComfyUI
+    revision: 984166f60a9b1fcede5e9b9287b7a7aebc050010
+    destination: diffusion_models
+    files:
+      - path: split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors
+        size_bytes: 20533762817
+        sha256: c9fdc158e46d3b61ef75f21ae866ca2fe808bf4a53643120d1c1e87c19280a4e
+  qwen_image_edit_clip_fp8:
+    source: huggingface
+    repo: Comfy-Org/Qwen-Image_ComfyUI
+    revision: 7beb7b647f04469fbe64ba8adc2bb0d7e5e9f73f
+    destination: text_encoders
+    files:
+      - path: split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+        size_bytes: 9384670680
+        sha256: cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4
+  qwen_image_vae:
+    source: huggingface
+    repo: Comfy-Org/Qwen-Image_ComfyUI
+    revision: 7beb7b647f04469fbe64ba8adc2bb0d7e5e9f73f
+    destination: vae
+    files:
+      - path: split_files/vae/qwen_image_vae.safetensors
+        size_bytes: 253806246
+        sha256: a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f

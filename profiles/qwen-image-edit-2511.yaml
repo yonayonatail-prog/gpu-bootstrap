@@ -1,0 +1,18 @@
+name: qwen-image-edit-2511
+services:
+  comfyui: true
+  llm: false
+models: [qwen_image_edit_2511_fp8mixed, qwen_image_edit_clip_fp8, qwen_image_vae]
+custom_nodes: []
+workflows: [qwen_image_edit_2511_multi_reference.json]
+download:
+  max_concurrent: 3
+  retries: 3
+disk:
+  install_budget_gib: 20
+  reserve_gib: 5
+comfyui:
+  repo: https://github.com/Comfy-Org/ComfyUI.git
+  revision: 7ea14e59da26b822bffc7df7220c07d9319392d5
+  port: 8188
+  startup_timeout_seconds: 600

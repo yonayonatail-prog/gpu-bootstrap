@@ -25,7 +25,7 @@ curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --ma
 bash bootstrap.sh base
 ```
 
-既定の `base` はモデルも Custom Node も取得しない最小の ComfyUI 構成です。SeeThrough を使う場合は最後を `seethrough` に、Wan 動画生成を使う場合は `video` に、画像生成は `image` に変更します。TRELLIS2 の画像→3D環境は `trellis2` に変更します。SeeThrough の操作は [SEE_THROUGH_RUNPOD.md](SEE_THROUGH_RUNPOD.md)、TRELLIS2 固有の Pod 条件と操作は [TRELLIS2_RUNPOD.md](TRELLIS2_RUNPOD.md) を参照してください。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、保存した `bootstrap.sh` の内容を確認してから実行してください。
+既定の `base` はモデルも Custom Node も取得しない最小の ComfyUI 構成です。SeeThrough を使う場合は最後を `seethrough` に、Wan 動画生成を使う場合は `video` に、画像生成は `image` に変更します。今回追加した比較用プロファイルは `netayume-lumina`、`illustrious-sdxl`、`qwen-image-edit-2511` です。TRELLIS2 の画像→3D環境は `trellis2` に変更します。SeeThrough の操作は [SEE_THROUGH_RUNPOD.md](SEE_THROUGH_RUNPOD.md)、TRELLIS2 固有の Pod 条件と操作は [TRELLIS2_RUNPOD.md](TRELLIS2_RUNPOD.md) を参照してください。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、保存した `bootstrap.sh` の内容を確認してから実行してください。
 
 RunpodをClineのLLMサーバーとして使う場合は、Runpod Secretまたは環境変数にAPIキーを設定してから `agent` を指定します。LLM APIはPod内の `127.0.0.1:8000` だけで待ち受けるため、RunpodのHTTPポートを追加公開する必要はありません。
 
@@ -56,7 +56,7 @@ tail -f /workspace/runtime/logs/bootstrap.log
 
 `[READY]` が出たらRunpodの **Connect → HTTP Service :8188** から開きます。`0.0.0.0` は待ち受けアドレスであり、手元PCで開くURLではありません。処理時間は回線・配布元・GPU・依存導入に左右されます。数十分は目安であり保証ではありません。
 
-ComfyUIのWorkflow一覧から、使うprofileに対応する `seethrough_basic.json`、`video_default.json`、`image_default.json`、または `trellis2_geometry_texture.json` を開いてRunします。`base` には同梱ワークフローはありません。**起動時に勝手に生成ジョブを投入することはありません。** READYはCUDAデバイス、HTTP応答、ワークフローに必要なノードの存在までの確認です。実際の生成成功・画質までは保証しません。
+ComfyUIのWorkflow一覧から、使うprofileに対応するJSONを開いてRunします。新しい3つは `netayume_lumina_lora.json`、`illustrious_sdxl_ipadapter_openpose.json`、`qwen_image_edit_2511_multi_reference.json` です。`base` には同梱ワークフローはありません。**起動時に勝手に生成ジョブを投入することはありません。** READYはCUDAデバイス、HTTP応答、ワークフローに必要なノードの存在までの確認です。実際の生成成功・画質までは保証しません。
 
 ## 標準プロファイル
 
@@ -67,6 +67,9 @@ ComfyUIのWorkflow一覧から、使うprofileに対応する `seethrough_basic.
 | `video` | Wan 2.1 T2V 1.3B FP16 / UMT5 FP8 scaled / Wan VAE | 832×480・33フレーム・16fps、animated WebP保存 |
 | `image` | Stable Diffusion 1.5 FP16 | 512×512、PNG保存 |
 | `trellis2` | TRELLIS.2 を使う ComfyUI の画像→3D環境 | PBR テクスチャ付き GLB、3Dプレビュー |
+| `netayume-lumina` | NetaYume-Lumina + 自分のLoRAで素の生成を確認 | `netayume_lumina_lora.json` |
+| `illustrious-sdxl` | Illustrious/SDXL + 自分LoRA + IPAdapter(CLIP Vision) + OpenPose | `illustrious_sdxl_ipadapter_openpose.json` |
+| `qwen-image-edit-2511` | キャラ・服/絵柄・ポーズ/シーンの3画像を1指示へ統合 | `qwen_image_edit_2511_multi_reference.json` |
 | `agent` | vLLM OpenAI互換API | Cline等からSSHトンネル経由で利用 |
 | `llm` | 旧予約名 | 明示的エラーで停止 |
 
@@ -75,6 +78,21 @@ ComfyUIのWorkflow一覧から、使うprofileに対応する `seethrough_basic.
 ComfyUIはv0.3.50のcommit、PyTorchは2.7.1/cu128、Transformersは4.55.4に固定しています。標準モデルも配布元のcommit・バイト数・SHA-256を固定しています。新モデルを利用するときは対応するComfyUI・依存条件も更新してください。ComfyUIの間接依存パッケージすべてを完全ロックした環境ではありません。
 
 モデルの利用条件: [Wan配布元](https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged)、[SD1.5配布元](https://huggingface.co/Comfy-Org/stable-diffusion-v1-5-archive)。モデルのライセンスはコードの配布条件とは別です。
+
+### 3系統の比較プロファイル
+
+`netayume-lumina` と `illustrious-sdxl` は個人LoRAや非標準チェックポイントをGitへ保存しません。Pod起動後に次の場所へ自分のファイルを配置し、ワークフローのLoaderのファイル名だけ合わせてください。
+
+```text
+ComfyUI/models/checkpoints/NetaYume-Lumina.safetensors
+ComfyUI/models/checkpoints/illustriousXL_v01.safetensors
+ComfyUI/models/loras/my_lora.safetensors
+ComfyUI/models/ipadapter/ip-adapter-plus_sdxl_vit-h.safetensors
+ComfyUI/models/clip_vision/clip_vision_h.safetensors
+ComfyUI/models/controlnet/controlnet-openpose-sdxl-1.0.safetensors
+```
+
+`netayume-lumina` は `prompt → 自分のLoRA → generate`、`illustrious-sdxl` はキャラ/絵柄をIPAdapter、ポーズをOpenPose、キャラをLoRAで分離制御します。後者は `ComfyUI_IPAdapter_plus` と `comfyui_controlnet_aux` を自動導入します。`qwen-image-edit-2511` は公式ComfyUIモデルを自動取得し、3枚の参照画像と自然言語指示を `TextEncodeQwenImageEditPlus` へ渡します。QwenはFP8混合版を使用するため、VRAMが少ない場合は解像度を下げてください。
 
 ## 構築の流れと再実行
 
