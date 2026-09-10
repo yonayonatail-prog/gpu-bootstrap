@@ -522,24 +522,44 @@ class Builder:
             print(f"Stopping owned ComfyUI PID {live['pid']} before switching profile.", flush=True)
             self.stop_owned_service(live)
         port = int(self.profile["comfyui"].get("port", 8188))
+        for pid in self.owned_pids_on_port(port):
+            print(f"Stopping owned ComfyUI PID {pid} found on port {port}.", flush=True)
+            self.stop_owned_pid(pid)
         with socket.socket() as sock:
             if sock.connect_ex(("127.0.0.1", port)) == 0 and not self.live_service():
                 raise Failure("service", "port", f"Port {port} is in use by another process.", "Stop that service or choose another comfyui.port.")
 
-    def stop_owned_service(self, live):
-        """Gracefully stop a ComfyUI process previously started by this runtime."""
-        pid = int(live["pid"])
+    def owned_pids_on_port(self, port):
+        """Find ComfyUI processes from this runtime even if service.json is stale."""
+        if not Path("/proc").exists():
+            return []
+        try:
+            result = subprocess.run(["ss", "-ltnp"], capture_output=True, text=True, check=False)
+        except OSError:
+            return []
+        pids = set()
+        for line in result.stdout.splitlines():
+            if f":{port} " not in line and not line.rstrip().endswith(f":{port}"):
+                continue
+            pids.update(int(value) for value in re.findall(r"pid=(\d+)", line))
+        marker = str(self.comfy / "main.py").encode()
+        return [pid for pid in sorted(pids) if (Path("/proc") / str(pid) / "cmdline").exists() and marker in (Path("/proc") / str(pid) / "cmdline").read_bytes()]
+
+    def stop_owned_pid(self, pid):
         try:
             os.kill(pid, signal.SIGTERM)
         except ProcessLookupError:
             return
         deadline = time.monotonic() + 30
-        while time.monotonic() < deadline:
-            if not self.live_service():
-                return
+        proc = Path("/proc") / str(pid)
+        while time.monotonic() < deadline and proc.exists():
             time.sleep(0.5)
-        if self.live_service():
+        if proc.exists():
             raise Failure("service", "ComfyUI", f"Owned ComfyUI PID {pid} did not stop after SIGTERM.", "Stop the process manually after confirming no generation is running.")
+
+    def stop_owned_service(self, live):
+        """Gracefully stop a ComfyUI process previously started by this runtime."""
+        self.stop_owned_pid(int(live["pid"]))
 
     def start_service(self):
         self.status("service_start")
