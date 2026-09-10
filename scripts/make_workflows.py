@@ -69,7 +69,7 @@ def generate(video):
 
 def generate_neta():
     g = Graph()
-    model = g.node("CheckpointLoaderSimple", ["NetaYume-Lumina.safetensors"], outputs=["MODEL", "CLIP", "VAE"])
+    model = g.node("CheckpointLoaderSimple", ["NetaYume_v3_all_in_one.safetensors"], outputs=["MODEL", "CLIP", "VAE"])
     lora = g.node("LoraLoaderModelOnly", ["my_lora.safetensors", 0.85], [("model", "MODEL")], ["MODEL"], pos=(360, 0), title="Your LoRA")
     positive = g.node("CLIPTextEncode", ["masterpiece, best quality, original character, soft luminous anime illustration"], [("clip", "CLIP")], ["CONDITIONING"], pos=(360, 260), title="Prompt")
     negative = g.node("CLIPTextEncode", ["low quality, blurry, bad anatomy, watermark, text"], [("clip", "CLIP")], ["CONDITIONING"], pos=(360, 520), title="Negative prompt")
