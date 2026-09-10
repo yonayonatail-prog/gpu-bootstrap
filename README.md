@@ -60,18 +60,18 @@ ComfyUIのWorkflow一覧から、使うprofileに対応するJSONを開いてRun
 
 ## 標準プロファイル
 
-| profile | 内容 | 同梱ワークフロー |
+| 実行コマンド | 内容 | 同梱ワークフロー |
 | --- | --- | --- |
-| `base` | モデル・Custom Node なしの最小 ComfyUI | なし |
-| `seethrough` | SeeThrough によるアニメ調キャラクターのレイヤー・深度分解 | PSD / Depth PSD、合成プレビュー |
-| `video` | Wan 2.1 T2V 1.3B FP16 / UMT5 FP8 scaled / Wan VAE | 832×480・33フレーム・16fps、animated WebP保存 |
-| `image` | Stable Diffusion 1.5 FP16 | 512×512、PNG保存 |
-| `trellis2` | TRELLIS.2 を使う ComfyUI の画像→3D環境 | PBR テクスチャ付き GLB、3Dプレビュー |
-| `netayume-lumina` | NetaYume-Lumina + 自分のLoRAで素の生成を確認 | `netayume_lumina_lora.json` |
-| `illustrious-sdxl` | Illustrious/SDXL + 自分LoRA + IPAdapter(CLIP Vision) + OpenPose | `illustrious_sdxl_ipadapter_openpose.json` |
-| `qwen-image-edit-2511` | キャラ・服/絵柄・ポーズ/シーンの3画像を1指示へ統合 | `qwen_image_edit_2511_multi_reference.json` |
-| `agent` | vLLM OpenAI互換API | Cline等からSSHトンネル経由で利用 |
-| `llm` | 旧予約名 | 明示的エラーで停止 |
+| `bash bootstrap.sh base` | モデル・Custom Node なしの最小 ComfyUI | なし |
+| `bash bootstrap.sh seethrough` | SeeThrough によるアニメ調キャラクターのレイヤー・深度分解 | PSD / Depth PSD、合成プレビュー |
+| `bash bootstrap.sh video` | Wan 2.1 T2V 1.3B FP16 / UMT5 FP8 scaled / Wan VAE | 832×480・33フレーム・16fps、animated WebP保存 |
+| `bash bootstrap.sh image` | Stable Diffusion 1.5 FP16 | 512×512、PNG保存 |
+| `bash bootstrap.sh trellis2` | TRELLIS.2 を使う ComfyUI の画像→3D環境 | PBR テクスチャ付き GLB、3Dプレビュー |
+| `bash bootstrap.sh netayume-lumina` | NetaYume-Lumina + 自分のLoRAで素の生成を確認 | `netayume_lumina_lora.json` |
+| `bash bootstrap.sh illustrious-sdxl` | Illustrious/SDXL + 自分LoRA + IPAdapter(CLIP Vision) + OpenPose | `illustrious_sdxl_ipadapter_openpose.json` |
+| `bash bootstrap.sh qwen-image-edit-2511` | キャラ・服/絵柄・ポーズ/シーンの3画像を1指示へ統合 | `qwen_image_edit_2511_multi_reference.json` |
+| `bash bootstrap.sh agent` | vLLM OpenAI互換API | Cline等からSSHトンネル経由で利用 |
+| `bash bootstrap.sh llm` | 旧予約名 | 明示的エラーで停止 |
 
 動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。SeeThrough は `seethrough` プロファイルでのみ導入します。SeeThrough の取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。さらに LayerDiff本体（約10.2 GB）とMarigold深度モデル（約3.3 GB）も、`seethrough` プロファイルの構築中に同じキャッシュへ事前取得します。自動取得が失敗するPodでは、[SeeThrough手順書の事前取得手順](SEE_THROUGH_RUNPOD.md#81-hugging-face-接続に失敗する場合モデルを事前取得する)を実行してください。
 
