@@ -14,6 +14,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -518,11 +519,27 @@ class Builder:
     def check_existing_service(self):
         live = self.live_service()
         if live and live.get("signature") != self.signature:
-            raise Failure("service", "ComfyUI", "A different environment is already running.", f"Stop the existing ComfyUI PID {live['pid']} before switching versions or nodes, then rerun.")
+            print(f"Stopping owned ComfyUI PID {live['pid']} before switching profile.", flush=True)
+            self.stop_owned_service(live)
         port = int(self.profile["comfyui"].get("port", 8188))
         with socket.socket() as sock:
-            if sock.connect_ex(("127.0.0.1", port)) == 0 and not live:
+            if sock.connect_ex(("127.0.0.1", port)) == 0 and not self.live_service():
                 raise Failure("service", "port", f"Port {port} is in use by another process.", "Stop that service or choose another comfyui.port.")
+
+    def stop_owned_service(self, live):
+        """Gracefully stop a ComfyUI process previously started by this runtime."""
+        pid = int(live["pid"])
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if not self.live_service():
+                return
+            time.sleep(0.5)
+        if self.live_service():
+            raise Failure("service", "ComfyUI", f"Owned ComfyUI PID {pid} did not stop after SIGTERM.", "Stop the process manually after confirming no generation is running.")
 
     def start_service(self):
         self.status("service_start")

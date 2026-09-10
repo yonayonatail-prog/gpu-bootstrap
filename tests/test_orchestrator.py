@@ -276,8 +276,8 @@ HTTPServer(("127.0.0.1", int(sys.argv[sys.argv.index("--port")+1])), Handler).se
             builder.start_service()
             self.assertEqual(builder.live_service()["pid"], first["pid"])
             builder.signature = "changed"
-            with self.assertRaises(o.Failure):
-                builder.check_existing_service()
+            builder.check_existing_service()
+            self.assertIsNone(builder.live_service())
         finally:
             live = builder.live_service()
             if live:
