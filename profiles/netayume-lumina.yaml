@@ -2,9 +2,9 @@ name: netayume-lumina
 services:
   comfyui: true
   llm: false
-# NetaYume-Lumina and the user's LoRA are intentionally local assets.
-# Put them in ComfyUI/models/checkpoints and ComfyUI/models/loras.
-models: []
+# The base checkpoint is downloaded by this profile; only the user's LoRA is local.
+# Put the LoRA in ComfyUI/models/loras.
+models: [netayume_lumina_v3]
 custom_nodes: []
 workflows: [netayume_lumina_lora.json]
 download:
@@ -15,6 +15,6 @@ disk:
   reserve_gib: 5
 comfyui:
   repo: https://github.com/Comfy-Org/ComfyUI.git
-  revision: d5c1954d5cd4a789bbf84d2b75a955a5a3f93de8
+  revision: 7ea14e59da26b822bffc7df7220c07d9319392d5
   port: 8188
   startup_timeout_seconds: 300

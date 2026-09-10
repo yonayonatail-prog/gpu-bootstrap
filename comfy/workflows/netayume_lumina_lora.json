@@ -45,7 +45,7 @@
         "Node name for S&R": "CheckpointLoaderSimple"
       },
       "widgets_values": [
-        "NetaYume-Lumina.safetensors"
+        "NetaYume_v3_all_in_one.safetensors"
       ]
     },
     {

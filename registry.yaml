@@ -63,3 +63,12 @@ models:
       - path: split_files/vae/qwen_image_vae.safetensors
         size_bytes: 253806246
         sha256: a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f
+  netayume_lumina_v3:
+    source: huggingface
+    repo: duongve/NetaYume-Lumina-Image-2.0
+    revision: 69c29c441119d43405d8373c654b16827d3cf46e
+    destination: checkpoints
+    files:
+      - path: NetaYume_v3_all_in_one.safetensors
+        size_bytes: 10620231245
+        sha256: 0811ee8742545bafde34caffd38d124d9f4e066f151a1c3e7aa7a80b5b493072

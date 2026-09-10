@@ -81,10 +81,9 @@ ComfyUIはv0.3.50のcommit、PyTorchは2.7.1/cu128、Transformersは4.55.4に固
 
 ### 3系統の比較プロファイル
 
-`netayume-lumina` と `illustrious-sdxl` は個人LoRAや非標準チェックポイントをGitへ保存しません。Pod起動後に次の場所へ自分のファイルを配置し、ワークフローのLoaderのファイル名だけ合わせてください。
+`illustrious-sdxl` は個人LoRAや非標準チェックポイントをGitへ保存しません。Pod起動後に次の場所へ自分のファイルを配置し、ワークフローのLoaderのファイル名だけ合わせてください。`netayume-lumina`のNetaYume-Lumina v3本体はプロファイル実行時に自動取得します。
 
 ```text
-ComfyUI/models/checkpoints/NetaYume-Lumina.safetensors
 ComfyUI/models/checkpoints/illustriousXL_v01.safetensors
 ComfyUI/models/loras/my_lora.safetensors
 ComfyUI/models/ipadapter/ip-adapter-plus_sdxl_vit-h.safetensors

@@ -22,4 +22,4 @@ Illustrious/SDXLは、キャラ/絵柄参照を`IPAdapterAdvanced`、ポーズ�
 
 Qwen Image Edit 2511は、3枚の参照を`TextEncodeQwenImageEditPlus`へまとめ、instructionで「image 1はキャラ、image 2は服・絵柄、image 3はポーズ・シーン」と役割を明示しています。
 
-個人LoRA、NetaYume-Lumina、Illustriousチェックポイント、IPAdapter、CLIP Vision、OpenPose ControlNetはGitへ含めていません。ファイル名は各JSONのLoaderにある初期値です。
+個人LoRA、Illustriousチェックポイント、IPAdapter、CLIP Vision、OpenPose ControlNetはGitへ含めていません。NetaYume-Lumina v3は`netayume-lumina`プロファイルで自動取得します。その他のファイル名は各JSONのLoaderにある初期値です。
