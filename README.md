@@ -54,7 +54,7 @@ Runpod の Pod 作成、API キー、SSH トンネル、VS Code / Cline の設�
 tail -f /workspace/runtime/logs/bootstrap.log
 ```
 
-起動直後は `[STAGE] system_dependencies` としてAPTの更新・パッケージ導入が実行されます。APT更新は180秒、パッケージ導入は900秒でタイムアウトし、完了すると `[DONE]` が表示されます。ここで長時間止まる場合は、モデル取得やComfyUI起動までまだ進んでいません。
+起動直後は `[STAGE] system_dependencies` としてAPTの更新・パッケージ導入が実行されます。APT更新は600秒、パッケージ導入は900秒でタイムアウトします。APT更新は取得先・再試行・接続タイムアウトも表示し、完了すると `[DONE]` が表示されます。ここで長時間止まる場合は、モデル取得やComfyUI起動までまだ進んでいません。
 
 `[READY]` が出たらRunpodの **Connect → HTTP Service :8188** から開きます。`0.0.0.0` は待ち受けアドレスであり、手元PCで開くURLではありません。処理時間は回線・配布元・GPU・依存導入に左右されます。数十分は目安であり保証ではありません。
 
