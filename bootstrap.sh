@@ -38,7 +38,7 @@ else
 fi
 command -v apt-get >/dev/null || { echo '[FAILED] Ubuntu/Debian with apt-get is required'; exit 1; }
 "${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get update -qq
-"${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-venv python3-pip git curl ca-certificates aria2 ffmpeg build-essential libgl1 libglib2.0-0
+"${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-venv python3-pip git curl tree ca-certificates aria2 ffmpeg build-essential libgl1 libglib2.0-0
 python3 -c 'import sys; assert (3,10) <= sys.version_info < (3,14), "Use Python 3.10 through 3.13 (recommended: Ubuntu 22.04/24.04)"'
 stage=repository
 askpass=$(mktemp "$RUNTIME_ROOT/askpass.XXXXXX")
