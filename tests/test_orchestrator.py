@@ -208,6 +208,16 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(target.exists())
 
+    def test_runpod_proxy_origin_is_added_to_comfy_command(self):
+        builder, _ = self.fixture()
+        with patch.dict(os.environ, {"RUNPOD_POD_ID": "abc123-test", "COMFYUI_CORS_ORIGIN": ""}):
+            command = builder.comfy_command(8188)
+        self.assertEqual(command[-2:], ["--enable-cors-header", "https://abc123-test-8188.proxy.runpod.net"])
+
+        with patch.dict(os.environ, {"RUNPOD_POD_ID": "abc123-test", "COMFYUI_CORS_ORIGIN": "https://custom.example"}):
+            command = builder.comfy_command(8188)
+        self.assertEqual(command[-2:], ["--enable-cors-header", "https://custom.example"])
+
     @unittest.skipUnless(sys.platform == "linux", "Linux Bash launch command")
     def test_readme_one_liner_fetches_before_execute(self):
         command = (o.HERE / "README.md").read_text().split("```bash\n", 1)[1].split("\n```", 1)[0]

@@ -561,6 +561,17 @@ class Builder:
         """Gracefully stop a ComfyUI process previously started by this runtime."""
         self.stop_owned_pid(int(live["pid"]))
 
+    def comfy_command(self, port):
+        command = [str(self.py), str(self.comfy / "main.py"), "--listen", "0.0.0.0", "--port", str(port)]
+        cors_origin = os.environ.get("COMFYUI_CORS_ORIGIN", "").strip()
+        if not cors_origin:
+            pod_id = os.environ.get("RUNPOD_POD_ID", "").strip()
+            if re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*", pod_id):
+                cors_origin = f"https://{pod_id}-{port}.proxy.runpod.net"
+        if cors_origin:
+            command.extend(["--enable-cors-header", cors_origin])
+        return command
+
     def start_service(self):
         self.status("service_start")
         port = int(self.profile["comfyui"].get("port", 8188))
@@ -570,7 +581,7 @@ class Builder:
             for key in ("GH_TOKEN", "GITHUB_TOKEN", "HF_TOKEN", "CIVITAI_TOKEN"):
                 env.pop(key, None)
             with (self.logs / "comfyui.log").open("a") as output:
-                process = subprocess.Popen([str(self.py), str(self.comfy / "main.py"), "--listen", "0.0.0.0", "--port", str(port)],
+                process = subprocess.Popen(self.comfy_command(port),
                                            cwd=self.comfy, env=env, stdin=subprocess.DEVNULL,
                                            stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
             try:
