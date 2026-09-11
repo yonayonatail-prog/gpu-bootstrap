@@ -37,8 +37,12 @@ else
     privilege=(sudo -n)
 fi
 command -v apt-get >/dev/null || { echo '[FAILED] Ubuntu/Debian with apt-get is required'; exit 1; }
-"${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get update -qq
-"${privilege[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-venv python3-pip git curl tree ca-certificates aria2 ffmpeg build-essential libgl1 libglib2.0-0
+echo '[STAGE] system_dependencies: apt-get update (timeout 180s)'
+"${privilege[@]}" env DEBIAN_FRONTEND=noninteractive timeout --foreground 180 apt-get update -qq
+echo '[DONE] system_dependencies: apt-get update'
+echo '[STAGE] system_dependencies: apt-get install (timeout 900s)'
+"${privilege[@]}" env DEBIAN_FRONTEND=noninteractive timeout --foreground 900 apt-get install -y -qq python3 python3-venv python3-pip git curl tree ca-certificates aria2 ffmpeg build-essential libgl1 libglib2.0-0
+echo '[DONE] system_dependencies: apt packages installed'
 python3 -c 'import sys; assert (3,10) <= sys.version_info < (3,14), "Use Python 3.10 through 3.13 (recommended: Ubuntu 22.04/24.04)"'
 stage=repository
 askpass=$(mktemp "$RUNTIME_ROOT/askpass.XXXXXX")

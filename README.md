@@ -54,6 +54,8 @@ Runpod の Pod 作成、API キー、SSH トンネル、VS Code / Cline の設�
 tail -f /workspace/runtime/logs/bootstrap.log
 ```
 
+起動直後は `[STAGE] system_dependencies` としてAPTの更新・パッケージ導入が実行されます。APT更新は180秒、パッケージ導入は900秒でタイムアウトし、完了すると `[DONE]` が表示されます。ここで長時間止まる場合は、モデル取得やComfyUI起動までまだ進んでいません。
+
 `[READY]` が出たらRunpodの **Connect → HTTP Service :8188** から開きます。`0.0.0.0` は待ち受けアドレスであり、手元PCで開くURLではありません。処理時間は回線・配布元・GPU・依存導入に左右されます。数十分は目安であり保証ではありません。
 
 ComfyUIのWorkflow一覧から、使うprofileに対応するJSONを開いてRunします。新しい3つは `netayume_lumina_lora.json`、`illustrious_sdxl_ipadapter_openpose.json`、`qwen_image_edit_2511_multi_reference.json` です。`base` には同梱ワークフローはありません。**起動時に勝手に生成ジョブを投入することはありません。** READYはCUDAデバイス、HTTP応答、ワークフローに必要なノードの存在までの確認です。実際の生成成功・画質までは保証しません。
@@ -72,6 +74,15 @@ ComfyUIのWorkflow一覧から、使うprofileに対応するJSONを開いてRun
 | `bash bootstrap.sh qwen-image-edit-2511` | キャラ・服/絵柄・ポーズ/シーンの3画像を1指示へ統合 | `qwen_image_edit_2511_multi_reference.json` |
 | `bash bootstrap.sh agent` | vLLM OpenAI互換API | Cline等からSSHトンネル経由で利用 |
 | `bash bootstrap.sh llm` | 旧予約名 | 明示的エラーで停止 |
+
+比較用プロファイルのContainer diskは、必要最低限の目安を次のとおりとします。
+
+| プロファイル | 必要最低限のContainer disk |
+| --- | ---: |
+| `netayume-lumina`（NetaYume-Lumina） | 30 GB |
+| `qwen-image-edit-2511`（Qwen Image Edit 2511） | 60 GB |
+
+これはモデル配置と起動に必要な最低目安です。生成画像の保存、再ダウンロード用の余裕、依存パッケージの増加分は別途必要になります。
 
 動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。SeeThrough は `seethrough` プロファイルでのみ導入します。SeeThrough の取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。さらに LayerDiff本体（約10.2 GB）とMarigold深度モデル（約3.3 GB）も、`seethrough` プロファイルの構築中に同じキャッシュへ事前取得します。自動取得が失敗するPodでは、[SeeThrough手順書の事前取得手順](SEE_THROUGH_RUNPOD.md#81-hugging-face-接続に失敗する場合モデルを事前取得する)を実行してください。
 
