@@ -9,17 +9,78 @@ profile="${1:-base}"
 [[ "$profile" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo '[FAILED] Invalid profile name'; exit 1; }
 [[ "$RUNTIME_ROOT" == /* && "$RUNTIME_ROOT" != / ]] || { echo '[FAILED] RUNTIME_ROOT must be an absolute non-root path'; exit 1; }
 [[ "$GPU_BOOTSTRAP_REPO" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]] || exit 1
-mkdir -p "$RUNTIME_ROOT/logs"
+
+gpu_precheck() {
+    local output first gpu_name gpu_mem_mib driver
+    if ! command -v nvidia-smi >/dev/null 2>&1; then
+        printf '%s\n' \
+            '[GPU PRECHECK FAILED]' \
+            'Reason: nvidia-smi is not available in this Pod.' \
+            'Action: terminate this Pod and rent another GPU Pod.' \
+            'No models were downloaded.' >&2
+        return 20
+    fi
+    if command -v timeout >/dev/null 2>&1; then
+        if ! output=$(timeout --foreground 15 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits 2>&1); then
+            printf '%s\n' \
+                '[GPU PRECHECK FAILED]' \
+                "Reason: nvidia-smi could not query the GPU: ${output//$'\n'/ }" \
+                'Action: terminate this Pod and rent another GPU Pod.' \
+                'No models were downloaded.' >&2
+            return 21
+        fi
+    elif ! output=$(nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits 2>&1); then
+        printf '%s\n' \
+            '[GPU PRECHECK FAILED]' \
+            "Reason: nvidia-smi could not query the GPU: ${output//$'\n'/ }" \
+            'Action: terminate this Pod and rent another GPU Pod.' \
+            'No models were downloaded.' >&2
+        return 21
+    fi
+    first=$(printf '%s\n' "$output" | sed -n '1p')
+    IFS=',' read -r gpu_name gpu_mem_mib driver <<<"$first"
+    gpu_name=$(printf '%s' "${gpu_name:-}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    gpu_mem_mib=$(printf '%s' "${gpu_mem_mib:-}" | sed 's/[[:space:]]//g')
+    driver=$(printf '%s' "${driver:-}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    if [[ -z "$gpu_name" || ! "$gpu_mem_mib" =~ ^[0-9]+([.][0-9]+)?$ ]] || ! awk "BEGIN { exit !($gpu_mem_mib > 0) }"; then
+        printf '%s\n' \
+            '[GPU PRECHECK FAILED]' \
+            'Reason: GPU metadata is invalid or reports zero VRAM.' \
+            'Action: terminate this Pod and rent another GPU Pod.' \
+            'No models were downloaded.' >&2
+        return 22
+    fi
+    printf '[GPU PRECHECK PASS]\nGPU: %s\nVRAM: %.1f GiB\nDriver: %s\n' \
+        "$gpu_name" "$(awk "BEGIN { print $gpu_mem_mib / 1024 }")" "$driver"
+}
+
+# Run the cheapest failure check in the foreground, before APT, pip, Git, or model downloads.
+if [[ "$profile" == doctor ]]; then
+    gpu_precheck
+    mkdir -p "$RUNTIME_ROOT"
+    free_kib=$(df -Pk "$RUNTIME_ROOT" | awk 'NR==2 {print $4}')
+    printf 'Disk free: %.1f GiB\n[POD STATUS] USABLE\n' "$(awk "BEGIN { print $free_kib / 1048576 }")"
+    exit 0
+fi
+
 if [[ "${GPU_BOOTSTRAP_WORKER:-0}" != 1 ]]; then
+    gpu_precheck
+    mkdir -p "$RUNTIME_ROOT/logs"
     # Use a unique copy so a second invocation cannot overwrite a running shell script.
     launcher=$(mktemp "$RUNTIME_ROOT/launcher.XXXXXX.sh")
     cp -- "${BASH_SOURCE[0]}" "$launcher"
-    GPU_BOOTSTRAP_WORKER=1 nohup bash "$launcher" "$profile" </dev/null >>"$RUNTIME_ROOT/logs/bootstrap.log" 2>&1 &
+    GPU_BOOTSTRAP_WORKER=1 GPU_BOOTSTRAP_PRECHECKED=1 nohup bash "$launcher" "$profile" </dev/null >>"$RUNTIME_ROOT/logs/bootstrap.log" 2>&1 &
     echo "[STARTED] Profile: $profile; PID: $!"
     echo "Progress: tail -f '$RUNTIME_ROOT/logs/bootstrap.log'"
     echo 'You may close this terminal. Look for [READY] or [FAILED] in the log.'
     exit 0
 fi
+
+mkdir -p "$RUNTIME_ROOT/logs"
+if [[ "${GPU_BOOTSTRAP_PRECHECKED:-0}" != 1 ]]; then
+    gpu_precheck
+fi
+
 stage=bootstrap
 askpass=''
 cleanup() { [[ -z "$askpass" ]] || rm -f -- "$askpass"; }
