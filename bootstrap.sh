@@ -10,6 +10,152 @@ profile="${1:-base}"
 [[ "$RUNTIME_ROOT" == /* && "$RUNTIME_ROOT" != / ]] || { echo '[FAILED] RUNTIME_ROOT must be an absolute non-root path'; exit 1; }
 [[ "$GPU_BOOTSTRAP_REPO" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]] || exit 1
 
+cuda_driver_precheck() {
+    local probe_output probe_rc
+    if ! command -v python3 >/dev/null 2>&1; then
+        printf '%s\n' \
+            '[GPU PRECHECK FAILED]' \
+            'Reason: python3 is required for the CUDA driver probe.' \
+            'Action: use a supported Ubuntu/Python GPU template.' \
+            'No models were downloaded.' >&2
+        return 23
+    fi
+
+    set +e
+    if command -v timeout >/dev/null 2>&1; then
+        probe_output=$(timeout --foreground 15 python3 - <<'PY' 2>&1
+import ctypes
+import sys
+
+try:
+    cuda = ctypes.CDLL("libcuda.so.1")
+except OSError as exc:
+    print("CUDA_DRIVER_LOAD_FAILED", repr(exc))
+    raise SystemExit(20)
+
+cuda.cuInit.argtypes = [ctypes.c_uint]
+cuda.cuInit.restype = ctypes.c_int
+cuda.cuDeviceGetCount.argtypes = [ctypes.POINTER(ctypes.c_int)]
+cuda.cuDeviceGetCount.restype = ctypes.c_int
+
+rc = cuda.cuInit(0)
+print("CUINIT_RC", rc)
+if rc != 0:
+    try:
+        cuda.cuGetErrorName.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_char_p)]
+        cuda.cuGetErrorName.restype = ctypes.c_int
+        cuda.cuGetErrorString.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_char_p)]
+        cuda.cuGetErrorString.restype = ctypes.c_int
+        name = ctypes.c_char_p()
+        desc = ctypes.c_char_p()
+        cuda.cuGetErrorName(rc, ctypes.byref(name))
+        cuda.cuGetErrorString(rc, ctypes.byref(desc))
+        print("CUINIT_ERROR", name.value.decode() if name.value else "unknown", desc.value.decode() if desc.value else "")
+    except Exception:
+        pass
+    raise SystemExit(21)
+
+count = ctypes.c_int()
+rc2 = cuda.cuDeviceGetCount(ctypes.byref(count))
+print("CUDEVICEGETCOUNT_RC", rc2)
+print("CUDA_DEVICE_COUNT", count.value)
+if rc2 != 0 or count.value < 1:
+    raise SystemExit(22)
+PY
+)
+        probe_rc=$?
+    else
+        probe_output=$(python3 - <<'PY' 2>&1
+import ctypes
+import sys
+
+try:
+    cuda = ctypes.CDLL("libcuda.so.1")
+except OSError as exc:
+    print("CUDA_DRIVER_LOAD_FAILED", repr(exc))
+    raise SystemExit(20)
+
+cuda.cuInit.argtypes = [ctypes.c_uint]
+cuda.cuInit.restype = ctypes.c_int
+cuda.cuDeviceGetCount.argtypes = [ctypes.POINTER(ctypes.c_int)]
+cuda.cuDeviceGetCount.restype = ctypes.c_int
+
+rc = cuda.cuInit(0)
+print("CUINIT_RC", rc)
+if rc != 0:
+    try:
+        cuda.cuGetErrorName.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_char_p)]
+        cuda.cuGetErrorName.restype = ctypes.c_int
+        cuda.cuGetErrorString.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_char_p)]
+        cuda.cuGetErrorString.restype = ctypes.c_int
+        name = ctypes.c_char_p()
+        desc = ctypes.c_char_p()
+        cuda.cuGetErrorName(rc, ctypes.byref(name))
+        cuda.cuGetErrorString(rc, ctypes.byref(desc))
+        print("CUINIT_ERROR", name.value.decode() if name.value else "unknown", desc.value.decode() if desc.value else "")
+    except Exception:
+        pass
+    raise SystemExit(21)
+
+count = ctypes.c_int()
+rc2 = cuda.cuDeviceGetCount(ctypes.byref(count))
+print("CUDEVICEGETCOUNT_RC", rc2)
+print("CUDA_DEVICE_COUNT", count.value)
+if rc2 != 0 or count.value < 1:
+    raise SystemExit(22)
+PY
+)
+        probe_rc=$?
+    fi
+    set -e
+
+    case "$probe_rc" in
+        0)
+            printf '[CUDA DRIVER PRECHECK PASS]\n%s\n' "$probe_output"
+            ;;
+        20)
+            printf '%s\n' \
+                '[GPU PRECHECK FAILED]' \
+                "Reason: libcuda.so.1 could not be loaded: ${probe_output//$'\n'/ }" \
+                'Action: terminate this Pod and rent another GPU Pod.' \
+                'No models were downloaded.' >&2
+            return 24
+            ;;
+        21)
+            printf '%s\n' \
+                '[GPU PRECHECK FAILED]' \
+                "Reason: CUDA driver initialization failed although nvidia-smi works: ${probe_output//$'\n'/ }" \
+                'Action: terminate this Pod and rent another GPU Pod.' \
+                'No models were downloaded.' >&2
+            return 25
+            ;;
+        22)
+            printf '%s\n' \
+                '[GPU PRECHECK FAILED]' \
+                "Reason: CUDA initialized but reports no compute devices: ${probe_output//$'\n'/ }" \
+                'Action: terminate this Pod and rent another GPU Pod.' \
+                'No models were downloaded.' >&2
+            return 26
+            ;;
+        124)
+            printf '%s\n' \
+                '[GPU PRECHECK FAILED]' \
+                'Reason: CUDA driver initialization timed out.' \
+                'Action: terminate this Pod and rent another GPU Pod.' \
+                'No models were downloaded.' >&2
+            return 27
+            ;;
+        *)
+            printf '%s\n' \
+                '[GPU PRECHECK FAILED]' \
+                "Reason: CUDA driver probe failed unexpectedly (exit $probe_rc): ${probe_output//$'\n'/ }" \
+                'Action: terminate this Pod and rent another GPU Pod.' \
+                'No models were downloaded.' >&2
+            return 28
+            ;;
+    esac
+}
+
 gpu_precheck() {
     local output first gpu_name gpu_mem_mib driver
     if ! command -v nvidia-smi >/dev/null 2>&1; then
@@ -50,8 +196,24 @@ gpu_precheck() {
             'No models were downloaded.' >&2
         return 22
     fi
-    printf '[GPU PRECHECK PASS]\nGPU: %s\nVRAM: %.1f GiB\nDriver: %s\n' \
+    printf '[NVIDIA-SMI PRECHECK PASS]\nGPU: %s\nVRAM: %.1f GiB\nDriver: %s\n' \
         "$gpu_name" "$(awk "BEGIN { print $gpu_mem_mib / 1024 }")" "$driver"
+    cuda_driver_precheck
+    printf '[GPU PRECHECK PASS]\nGPU compute initialization: PASS\n'
+}
+
+sanitize_pip_environment() {
+    local cleared=()
+    local name
+    for name in PIP_CONSTRAINT PIP_REQUIREMENT PIP_CONFIG_FILE PIP_EXTRA_INDEX_URL PIP_NO_INDEX PIP_FIND_LINKS; do
+        if [[ -n "${!name-}" ]]; then
+            cleared+=("$name")
+        fi
+        unset "$name" || true
+    done
+    if ((${#cleared[@]})); then
+        printf '[PIP ENV] cleared inherited controls: %s\n' "${cleared[*]}"
+    fi
 }
 
 # Run the cheapest failure check in the foreground, before APT, pip, Git, or model downloads.
@@ -65,6 +227,7 @@ fi
 
 if [[ "${GPU_BOOTSTRAP_WORKER:-0}" != 1 ]]; then
     gpu_precheck
+    sanitize_pip_environment
     mkdir -p "$RUNTIME_ROOT/logs"
     # Use a unique copy so a second invocation cannot overwrite a running shell script.
     launcher=$(mktemp "$RUNTIME_ROOT/launcher.XXXXXX.sh")
@@ -80,6 +243,7 @@ mkdir -p "$RUNTIME_ROOT/logs"
 if [[ "${GPU_BOOTSTRAP_PRECHECKED:-0}" != 1 ]]; then
     gpu_precheck
 fi
+sanitize_pip_environment
 
 stage=bootstrap
 askpass=''
