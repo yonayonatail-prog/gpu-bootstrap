@@ -11,7 +11,7 @@ trap 'rm -f "$TMP"' EXIT
 
 curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 "$RAW" -o "$TMP"
 
-python3 - "$TMP" <<'PY'
+python3 - "$TMP" <<'PYHOTFIX'
 from pathlib import Path
 import sys
 
@@ -68,7 +68,7 @@ PY
 if old not in text:
     raise SystemExit("Hotfix target block not found; experimental source changed")
 path.write_text(text.replace(old, new, 1), encoding="utf-8")
-PY
+PYHOTFIX
 
 chmod 700 "$TMP"
 exec bash "$TMP"
