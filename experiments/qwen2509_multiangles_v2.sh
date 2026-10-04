@@ -48,15 +48,23 @@ PY
   torchvision==0.22.1 torchaudio==2.7.1 \\
   --index-url https://download.pytorch.org/whl/cu128
 
+# At this point ComfyUI dependencies such as NumPy/Pillow are not installed yet,
+# so verify the wheel versions through metadata and only import torch itself.
 "$PY" - <<'PY'
-import torch, torchvision, torchaudio
-assert torch.__version__.startswith("2.7.1"), torch.__version__
-assert torchvision.__version__.startswith("0.22.1"), torchvision.__version__
-assert torchaudio.__version__.startswith("2.7.1"), torchaudio.__version__
+from importlib.metadata import version
+import torch
+versions = {
+    "torch": version("torch"),
+    "torchvision": version("torchvision"),
+    "torchaudio": version("torchaudio"),
+}
+assert versions["torch"].startswith("2.7.1"), versions
+assert versions["torchvision"].startswith("0.22.1"), versions
+assert versions["torchaudio"].startswith("2.7.1"), versions
 assert torch.cuda.is_available(), "PyTorch installed but CUDA is unavailable"
 x = torch.tensor([2.0], device="cuda")
 assert (x * 3).item() == 6.0
-print("[PYTORCH]", torch.__version__, torchvision.__version__, torchaudio.__version__)
+print("[PYTORCH WHEELS]", versions)
 print("[CUDA] tensor smoke test PASS:", torch.cuda.get_device_name(0))
 PY
 
@@ -64,6 +72,15 @@ PY
   -r "$COMFY/requirements.txt" -c "$CONSTRAINTS" \\
   --extra-index-url https://download.pytorch.org/whl/cu128
 "${PIP[@]}" install --disable-pip-version-check -q 'huggingface_hub[hf_xet]>=0.34'
+"${PIP[@]}" check
+
+# Now all runtime dependencies are present; verify the actual imports too.
+"$PY" - <<'PY'
+import numpy, torch, torchvision, torchaudio
+print("[NUMPY]", numpy.__version__)
+print("[PYTORCH]", torch.__version__, torchvision.__version__, torchaudio.__version__)
+assert torch.cuda.is_available(), "CUDA disappeared after dependency installation"
+PY
 '''
 if old not in text:
     raise SystemExit("Hotfix target block not found; experimental source changed")
