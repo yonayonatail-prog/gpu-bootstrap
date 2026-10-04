@@ -4,12 +4,36 @@ umask 077
 
 RUNTIME_ROOT="${RUNTIME_ROOT:-/workspace/runtime}"
 REPORT="$RUNTIME_ROOT/runpod-support-report.txt"
+REPORT_JSON="$RUNTIME_ROOT/runpod-support-report.json"
 mkdir -p "$RUNTIME_ROOT"
 
 utc_now() { date -u +%FT%TZ; }
 
-cuda_probe() {
-  python3 - <<'PY'
+SMI_QUERY=""
+SMI_FULL=""
+GPU_NODES=""
+CUDA_OUTPUT=""
+CUDA_RC=0
+FAIL_REASON=""
+SMI_RC=0
+
+if command -v nvidia-smi >/dev/null 2>&1; then
+  set +e
+  SMI_QUERY="$(timeout --foreground 15 nvidia-smi --query-gpu=index,name,uuid,memory.total,driver_version --format=csv,noheader,nounits 2>&1)"
+  SMI_RC=$?
+  SMI_FULL="$(timeout --foreground 15 nvidia-smi 2>&1)"
+  set -e
+else
+  SMI_RC=127
+  SMI_QUERY="nvidia-smi not found"
+  SMI_FULL="$SMI_QUERY"
+fi
+
+GPU_NODES="$(ls -l /dev/nvidia* 2>&1 || true)"
+
+if command -v python3 >/dev/null 2>&1; then
+  set +e
+  CUDA_OUTPUT="$(timeout --foreground 15 python3 - <<'PY' 2>&1
 import ctypes
 
 try:
@@ -47,52 +71,7 @@ print("CUDA_DEVICE_COUNT", count.value)
 if rc2 != 0 or count.value < 1:
     raise SystemExit(22)
 PY
-}
-
-SMI_QUERY=""
-SMI_FULL=""
-GPU_NODES=""
-CUDA_OUTPUT=""
-CUDA_RC=0
-FAIL_REASON=""
-
-if command -v nvidia-smi >/dev/null 2>&1; then
-  set +e
-  SMI_QUERY="$(timeout --foreground 15 nvidia-smi --query-gpu=index,name,uuid,memory.total,driver_version --format=csv,noheader,nounits 2>&1)"
-  SMI_RC=$?
-  SMI_FULL="$(timeout --foreground 15 nvidia-smi 2>&1)"
-  set -e
-else
-  SMI_RC=127
-  SMI_QUERY="nvidia-smi not found"
-  SMI_FULL="$SMI_QUERY"
-fi
-
-GPU_NODES="$(ls -l /dev/nvidia* 2>&1 || true)"
-
-if command -v python3 >/dev/null 2>&1; then
-  set +e
-  CUDA_OUTPUT="$(timeout --foreground 15 bash -c 'cuda_probe() { python3 - <<'"'"'PY'"'"'
-import ctypes
-try:
-    cuda = ctypes.CDLL("libcuda.so.1")
-except OSError as exc:
-    print("CUDA_DRIVER_LOAD_FAILED", repr(exc)); raise SystemExit(20)
-cuda.cuInit.argtypes=[ctypes.c_uint]; cuda.cuInit.restype=ctypes.c_int
-cuda.cuDeviceGetCount.argtypes=[ctypes.POINTER(ctypes.c_int)]; cuda.cuDeviceGetCount.restype=ctypes.c_int
-rc=cuda.cuInit(0); print("CUINIT_RC", rc)
-if rc != 0:
-    try:
-        cuda.cuGetErrorName.argtypes=[ctypes.c_int,ctypes.POINTER(ctypes.c_char_p)]; cuda.cuGetErrorName.restype=ctypes.c_int
-        cuda.cuGetErrorString.argtypes=[ctypes.c_int,ctypes.POINTER(ctypes.c_char_p)]; cuda.cuGetErrorString.restype=ctypes.c_int
-        name=ctypes.c_char_p(); desc=ctypes.c_char_p(); cuda.cuGetErrorName(rc,ctypes.byref(name)); cuda.cuGetErrorString(rc,ctypes.byref(desc))
-        print("CUINIT_ERROR", name.value.decode() if name.value else "unknown", desc.value.decode() if desc.value else "")
-    except Exception: pass
-    raise SystemExit(21)
-count=ctypes.c_int(); rc2=cuda.cuDeviceGetCount(ctypes.byref(count)); print("CUDEVICEGETCOUNT_RC",rc2); print("CUDA_DEVICE_COUNT",count.value)
-if rc2 != 0 or count.value < 1: raise SystemExit(22)
-PY
-}; cuda_probe' 2>&1)"
+)"
   CUDA_RC=$?
   set -e
 else
@@ -111,18 +90,20 @@ if [[ -n "$FAIL_REASON" ]]; then
   DC_ID="${RUNPOD_DC_ID:-unknown}"
   HOST="$(hostname 2>/dev/null || echo unknown)"
   KERNEL="$(uname -a 2>/dev/null || echo unknown)"
+  TIMESTAMP="$(utc_now)"
+
   cat >"$REPORT" <<EOF
-Subject: Community Cloud Pod exposed GPU via nvidia-smi but CUDA compute was unusable
+Subject: Community Cloud Pod exposed GPU but CUDA compute was unusable
 
 Hello Runpod Support,
 
-I rented a Community Cloud Pod that appeared to have an NVIDIA GPU, but CUDA compute was not usable. I terminated the Pod after confirming the failure.
+I rented a Community Cloud Pod that appeared to have an NVIDIA GPU, but CUDA compute was not usable. I stopped using the Pod immediately after confirming the failure.
 
 Please review the billing for this unusable Pod period and apply an account credit if appropriate.
 
 Pod ID: $POD_ID
 Datacenter ID: $DC_ID
-UTC timestamp: $(utc_now)
+UTC timestamp: $TIMESTAMP
 Hostname: $HOST
 Kernel: $KERNEL
 Failure: $FAIL_REASON
@@ -150,14 +131,33 @@ $SMI_FULL
 No model downloads were started by this doctor.
 EOF
 
+  REPORT_JSON="$REPORT_JSON" POD_ID="$POD_ID" DC_ID="$DC_ID" TIMESTAMP="$TIMESTAMP" HOST="$HOST" KERNEL="$KERNEL" FAIL_REASON="$FAIL_REASON" SMI_QUERY="$SMI_QUERY" CUDA_OUTPUT="$CUDA_OUTPUT" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+payload = {
+    "pod_id": os.environ["POD_ID"],
+    "datacenter_id": os.environ["DC_ID"],
+    "utc_timestamp": os.environ["TIMESTAMP"],
+    "hostname": os.environ["HOST"],
+    "kernel": os.environ["KERNEL"],
+    "failure": os.environ["FAIL_REASON"],
+    "nvidia_smi_query": os.environ["SMI_QUERY"],
+    "cuda_driver_probe": os.environ["CUDA_OUTPUT"],
+}
+Path(os.environ["REPORT_JSON"]).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
   echo
   echo '================ RUNPOD SUPPORT REPORT ================'
   cat "$REPORT"
   echo '================ END SUPPORT REPORT ==================='
   echo
-  echo "[POD STATUS] UNUSABLE"
-  echo "Saved: $REPORT"
-  echo "Copy the report above into a Runpod support ticket before terminating the Pod."
+  echo '[POD STATUS] UNUSABLE'
+  echo "Saved text: $REPORT"
+  echo "Saved JSON: $REPORT_JSON"
+  echo 'Copy the report above into a Runpod support ticket before terminating the Pod.'
   exit 42
 fi
 
