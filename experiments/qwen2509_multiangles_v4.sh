@@ -18,18 +18,22 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader ||
 
 printf '[GPU DEVICES]\n'
 ls -l /dev/nvidia* 2>/dev/null || true
-for node in /dev/nvidiactl /dev/nvidia0 /dev/nvidia-uvm; do
-  [[ -e "$node" ]] || fail "$node is missing although nvidia-smi works. CUDA compute is not usable; terminate this Community Cloud Pod."
-done
+[[ -e /dev/nvidiactl ]] || fail "/dev/nvidiactl is missing although nvidia-smi works. Terminate this Pod."
+[[ -e /dev/nvidia-uvm ]] || fail "/dev/nvidia-uvm is missing although nvidia-smi works. Terminate this Pod."
+shopt -s nullglob
+gpu_nodes=(/dev/nvidia[0-9]*)
+shopt -u nullglob
+((${#gpu_nodes[@]} > 0)) || fail "No /dev/nvidia<N> compute device is exposed although nvidia-smi works. Terminate this Pod."
+printf '[GPU DEVICE NODES] %s\n' "${gpu_nodes[*]}"
 
 printf '[CUDA ENV]\n'
 for name in CUDA_VISIBLE_DEVICES NVIDIA_VISIBLE_DEVICES CUDA_HOME CUDA_PATH LD_LIBRARY_PATH; do
   printf '%s=%s\n' "$name" "${!name-<unset>}"
 done
 
-# The Runpod Slim template ships a prebuilt cu128 environment.  Probe that first:
-# if *it* cannot allocate a CUDA tensor while nvidia-smi works, the Pod/host GPU
-# exposure is broken rather than our experimental venv.
+# The Runpod Slim template ships a prebuilt cu128 environment. Probe that first.
+# Physical device nodes do not have to be named /dev/nvidia0 inside a container;
+# the only reliable test is whether CUDA can actually allocate and compute.
 BASE_PY="${RUNPOD_BASE_CUDA_PY:-/workspace/runpod-slim/.venv-cu128/bin/python}"
 if [[ -x "$BASE_PY" ]]; then
   echo "[BASE CUDA PROBE] $BASE_PY"
