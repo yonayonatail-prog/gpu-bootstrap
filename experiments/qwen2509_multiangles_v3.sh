@@ -25,6 +25,10 @@ fi
 unset PIP_CONSTRAINT PIP_REQUIREMENT PIP_CONFIG_FILE PIP_EXTRA_INDEX_URL PIP_NO_INDEX PIP_FIND_LINKS
 export PIP_INDEX_URL="https://pypi.org/simple"
 
+# Previous resolver failures may have left a partially-mutated experiment venv.
+# Recreate only the Python environment; keep the cloned ComfyUI tree and any downloads.
+rm -rf /workspace/qwen2509-multiangles-exp/venv
+
 curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 "$RAW" -o "$TMP"
 chmod 700 "$TMP"
 exec bash "$TMP"
