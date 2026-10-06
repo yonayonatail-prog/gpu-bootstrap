@@ -12,7 +12,7 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements.txt
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq aria2
-      - run: bash -n bootstrap.sh runpod-doctor.sh scripts/install_comfy.sh scripts/install_llm.sh
+      - run: bash -n bootstrap.sh runpod-doctor.sh scripts/install_comfy.sh scripts/install_llm.sh scripts/install_upscaler.sh
       - run: python -m unittest discover -s tests -v
       - run: python orchestrator.py video --plan
       - run: python scripts/make_workflows.py && git diff --exit-code -- comfy/workflows
