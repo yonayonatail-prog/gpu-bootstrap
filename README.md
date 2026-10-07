@@ -8,11 +8,11 @@ Gitには設定・コード・ワークフローを保存します。モデル�
 
 ## 最初の1回だけ設定するもの
 
-1. Ubuntu 22.04 / 24.04、Python 3.10–3.13、NVIDIA GPU・動作するドライバ、rootまたはパスワード不要のsudoを使えるテンプレートを用意します。推奨検証対象はRTX 4090です。CUDA 12.8用PyTorchをインストールするので、対応する十分新しいNVIDIAドライバを使ってください。ドライバ自体はこの仕組みでは導入しません。
+1. Ubuntu 22.04 / 24.04、Python 3.10–3.13、NVIDIA GPU・動作するドライバ、rootまたはパスワード不要のsudoを使えるテンプレートを用意します。**普段使いではComfyUI同梱テンプレートより、できるだけ素のCUDA / PyTorch系テンプレートを推奨します。** `gpu-bootstrap` 自身が固定revisionのComfyUIと専用venvを構築するため、既存ComfyUI・既存venv・pip設定・8188番ポートがあるテンプレートは衝突要因になります。推奨検証対象はRTX 4090です。CUDA 12.8用PyTorchをインストールするので、対応する十分新しいNVIDIAドライバを使ってください。ドライバ自体はこの仕組みでは導入しません。
 2. HTTPポート **8188** を公開します。ComfyUIは `0.0.0.0:8188` で待ち受けます。RunpodのPodでは、プロキシのHost/Origin差によるComfyUIの403を避けるため、`RUNPOD_POD_ID` からそのPod専用のOriginを自動指定します。別のプロキシURLを使う場合は `COMFYUI_CORS_ORIGIN` で上書きできます。ComfyUI自体にはログイン認証を追加していないため、アクセスURLを公開せず、必要ならSSHトンネル等でアクセスを制限してください。
 3. `/workspace` の作業ディスクは **60 GB以上** を初期目安にします。標準videoはモデル約9.2 GiBに加え、Python/CUDA依存・一時ファイル・生成出力分が必要です。起動時に必要空き容量を計算します。既定では導入予算20 GiB、残す空き容量5 GiBを確保します。
 
-標準のvideo/imageモデルは公開配布です。通常 `HF_TOKEN` は不要です。後からgatedモデルを追加する場合は、Hugging Face側で利用条件に同意してからRunpod Secretに読み取りトークンを追加します。
+標準のvideo/imageモデルは公開配布です。通常 `HF_TOKEN` は不要です。ただしRunpodの共有IPでは、他利用者のアクセスを含めてHugging Faceの匿名APIレート制限に到達し、公開モデルでも `429 Too Many Requests` になる場合があります。頻繁に使う場合はHugging Faceの読み取りトークンで認証しておくと安定します。後からgatedモデルを追加する場合も、Hugging Face側で利用条件に同意してからRunpod Secretまたは環境変数へ読み取りトークンを追加します。
 
 参考: [Runpod Secrets](https://docs.runpod.io/pods/templates/secrets)、[HTTPポート](https://docs.runpod.io/pods/configuration/expose-ports)、[GitHubトークン作成](https://docs.github.com/en/authentication/keeping-your-personal-access-tokens)
 
@@ -31,7 +31,11 @@ bash runpod-doctor.sh
 
 ### Runpod Slim / ComfyUIテンプレートを使う場合
 
-一部のRunpod Slim系・ComfyUI同梱テンプレートは、Pod作成直後からテンプレート側のComfyUIを **8188** で起動しています。この状態で `gpu-bootstrap` を実行すると、誤って他プロセスを停止しないために次のエラーで止まります。
+**通常はこの節の手作業を避けるため、ComfyUI同梱ではない素のCUDA / PyTorch系テンプレートを推奨します。** ComfyUI同梱テンプレートも利用できますが、互換運用扱いです。
+
+一部のRunpod Slim系・ComfyUI同梱テンプレートは、Pod作成直後からテンプレート側のComfyUIを **8188** で起動しています。また、テンプレート側のvenvが有効化済みだったり、`PIP_CONSTRAINT` や `PIP_EXTRA_INDEX_URL` などのpip環境変数を持っている場合があります。`bootstrap.sh` は既知のpip制御変数をクリアしますが、既存ComfyUIの8188占有は安全のため自動停止しません。
+
+この状態で `gpu-bootstrap` を実行すると、誤って他プロセスを停止しないために次のエラーで止まります。
 
 ```text
 [FAILED]
@@ -67,7 +71,7 @@ curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --ma
 bash bootstrap.sh base
 ```
 
-既定の `base` はモデルも Custom Node も取得しない最小の ComfyUI 構成です。SeeThrough を使う場合は最後を `seethrough` に、Wan 動画生成を使う場合は `video` に、画像生成は `image` に変更します。今回追加した比較用プロファイルは `netayume-lumina`、`illustrious-sdxl`、`qwen-image-edit-2511` です。TRELLIS2 の画像→3D環境は `trellis2` に変更します。SeeThrough の操作は [SEE_THROUGH_RUNPOD.md](SEE_THROUGH_RUNPOD.md)、TRELLIS2 固有の Pod 条件と操作は [TRELLIS2_RUNPOD.md](TRELLIS2_RUNPOD.md) を参照してください。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、保存した `bootstrap.sh` の内容を確認してから実行してください。
+既定の `base` はモデルも Custom Node も取得しない最小の ComfyUI 構成です。SeeThrough を使う場合は最後を `seethrough` に、Wan 動画生成を使う場合は `video` に、画像生成は `image` に変更します。**各profileは直接実行できるため、`seethrough` の前に `base` を実行する必要はありません。** 今回追加した比較用プロファイルは `netayume-lumina`、`illustrious-sdxl`、`qwen-image-edit-2511` です。TRELLIS2 の画像→3D環境は `trellis2` に変更します。SeeThrough の操作は [SEE_THROUGH_RUNPOD.md](SEE_THROUGH_RUNPOD.md)、TRELLIS2 固有の Pod 条件と操作は [TRELLIS2_RUNPOD.md](TRELLIS2_RUNPOD.md) を参照してください。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、保存した `bootstrap.sh` の内容を確認してから実行してください。
 
 RunpodをClineのLLMサーバーとして使う場合は、Runpod Secretまたは環境変数にAPIキーを設定してから `agent` を指定します。LLM APIはPod内の `127.0.0.1:8000` だけで待ち受けるため、RunpodのHTTPポートを追加公開する必要はありません。
 
@@ -226,11 +230,33 @@ nodes:
 
 Custom Nodeは信頼できるリポジトリだけを追加します。`requirements.txt` はComfyUI専用venvへ制約付きで導入します。任意の `install.py` は実行しません。追加のOS依存や専用インストーラーを要するNodeは別途対応が必要です。
 
+## Hugging Faceの429が出た場合
+
+Runpodの共有IPでは、公開モデルでもHugging Faceの匿名APIレート制限に到達して `429 Too Many Requests` になる場合があります。エラーに `Retry after N seconds` が含まれる場合、認証後も現在のレート制限ウィンドウが切れるまで待つ必要があります。
+
+まずHugging Faceの読み取りトークンでログインします。トークン自体はGitやREADMEへ保存しないでください。
+
+```bash
+/workspace/runtime/controller-venv/bin/hf auth login
+/workspace/runtime/controller-venv/bin/hf auth whoami
+```
+
+認証を確認したら、エラーに表示された `Retry after` の秒数以上待ってから同じ `bootstrap.sh` を再実行します。SeeThroughの事前取得だけを確認したい場合は、次のように直接試せます。
+
+```bash
+HF_HUB_DISABLE_XET=1 /workspace/runtime/controller-venv/bin/hf download layerdifforg/seethroughv0.0.2_layerdiff3d
+HF_HUB_DISABLE_XET=1 /workspace/runtime/controller-venv/bin/hf download layerdifforg/seethroughv0.0.1_marigold
+bash bootstrap.sh seethrough
+```
+
+ダウンロード済みデータはHugging Faceキャッシュから再利用されるため、成功済みの取得を毎回やり直す必要はありません。
+
 ## トラブル時
 
 | 表示・症状 | 対処 |
 | --- | --- |
 | 初期取得の401/403/404 | `GH_TOKEN`、対象repoへのContents読み取り権限、有効期限を確認 |
+| Hugging Face `429 Too Many Requests` | `hf auth login` で読み取りトークンへログインし、`Retry after` の時間以上待ってから再実行。Runpod共有IPの匿名レート制限の場合あり |
 | `disk_preflight` | 作業ディスクを増やす。モデルDL前に停止済み |
 | `dependencies` | `logs/dependencies.log` でPython・CUDA・パッケージのエラーを確認 |
 | `model_download` | モデル別ログ、配布元、通信、必要ならHF_TOKENと利用条件を確認して再実行 |
