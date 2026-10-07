@@ -132,7 +132,7 @@ ComfyUIのWorkflow一覧から、使うprofileに対応するJSONを開いてRun
 
 これはモデル配置と起動に必要な最低目安です。生成画像の保存、再ダウンロード用の余裕、依存パッケージの増加分は別途必要になります。
 
-動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。SeeThrough は `seethrough` プロファイルでのみ導入します。SeeThrough の取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。さらに LayerDiff本体（約10.2 GB）とMarigold深度モデル（約3.3 GB）も、`seethrough` プロファイルの構築中に同じキャッシュへ事前取得します。自動取得が失敗するPodでは、[SeeThrough手順書の事前取得手順](SEE_THROUGH_RUNPOD.md#81-hugging-face-接続に失敗する場合モデルを事前取得する)を実行してください。
+動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。SeeThrough は `seethrough` プロファイルでのみ導入します。SeeThrough の取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。さらに LayerDiff本体（約10.2 GB）とMarigold深度モデル（約3.3 GB）も、`seethrough` プロファイルの構築中に同じキャッシュへ事前取得します。標準ワークフロー `seethrough_basic.json` は、連続実行時のVRAM不足を避けやすくするため、Layer生成を `1024`、Depth推論を `768` で実行する設定を既定とします。より高いDepth解像度が必要な場合は `SeeThrough_GenerateDepth` の `resolution_depth` を `-1`（Layerと同解像度）または `1024` に変更できますが、GPUメモリ使用量が増え、連続実行時に `torch.OutOfMemoryError` が出やすくなります。自動取得が失敗するPodでは、[SeeThrough手順書の事前取得手順](SEE_THROUGH_RUNPOD.md#81-hugging-face-接続に失敗する場合モデルを事前取得する)を実行してください。
 
 ComfyUIはv0.3.50のcommit、PyTorchは2.7.1/cu128、Transformersは4.55.4に固定しています。標準モデルも配布元のcommit・バイト数・SHA-256を固定しています。新モデルを利用するときは対応するComfyUI・依存条件も更新してください。ComfyUIの間接依存パッケージすべてを完全ロックした環境ではありません。
 
@@ -260,6 +260,7 @@ bash bootstrap.sh seethrough
 | `disk_preflight` | 作業ディスクを増やす。モデルDL前に停止済み |
 | `dependencies` | `logs/dependencies.log` でPython・CUDA・パッケージのエラーを確認 |
 | `model_download` | モデル別ログ、配布元、通信、必要ならHF_TOKENと利用条件を確認して再実行 |
+| `torch.OutOfMemoryError`（SeeThrough / `SeeThrough_GenerateDepth`） | 標準 `seethrough_basic.json` は `resolution_depth=768`。高解像度へ変更していた場合は `768` または `640` へ下げる。連続実行後に発生する場合はComfyUIを再起動してVRAMを解放してから再実行 |
 | `Stage: service` / `Port 8188 is in use` | `ps -eo pid,ppid,args | grep -E '[m]ain.py.*8188'` で使用中ComfyUIを確認。テンプレート由来と確認できた場合だけ停止して再実行 |
 | `service_health` | `comfyui.log`、GPU、起動時間、ワークフローのNodeを確認 |
 | `[BUSY]` | 別の構築が実行中。`bootstrap.log` を確認 |
