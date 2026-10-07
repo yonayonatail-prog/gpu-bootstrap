@@ -14,11 +14,53 @@ Gitには設定・コード・ワークフローを保存します。モデル�
 
 標準のvideo/imageモデルは公開配布です。通常 `HF_TOKEN` は不要です。後からgatedモデルを追加する場合は、Hugging Face側で利用条件に同意してからRunpod Secretに読み取りトークンを追加します。
 
-参考: [Runpod Secrets](https://docs.runpod.io/pods/templates/secrets)、[HTTPポート](https://docs.runpod.io/pods/configuration/expose-ports)、[GitHubトークン作成](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
+参考: [Runpod Secrets](https://docs.runpod.io/pods/templates/secrets)、[HTTPポート](https://docs.runpod.io/pods/configuration/expose-ports)、[GitHubトークン作成](https://docs.github.com/en/authentication/keeping-your-personal-access-tokens)
 
 ## 毎回貼り付ける手順
 
-Runpodの **Bashターミナル** で実行します。公開リポジトリなのでGitHubトークンは不要です。`bootstrap.sh` は自分自身を一時ファイルへコピーしてバックグラウンド実行するため、標準入力から `bash -s` へ直接渡さず、いったんファイルへ保存してから実行してください。
+Runpodの **Bashターミナル** で実行します。公開リポジトリなのでGitHubトークンは不要です。
+
+まず、課金を始める前提のGPU Podとして使える状態かを確認します。`nvidia-smi` が通るだけでなく、CUDA Driver APIの `cuInit(0)` まで確認します。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/runpod-doctor.sh -o runpod-doctor.sh
+bash runpod-doctor.sh
+```
+
+`[POD STATUS] USABLE` の場合だけ次へ進みます。`[POD STATUS] UNUSABLE` の場合は `/workspace/runtime/runpod-support-report.txt` と `.json` が作られるので、必要ならRunpod Supportへ添付してPodを終了します。
+
+### Runpod Slim / ComfyUIテンプレートを使う場合
+
+一部のRunpod Slim系・ComfyUI同梱テンプレートは、Pod作成直後からテンプレート側のComfyUIを **8188** で起動しています。この状態で `gpu-bootstrap` を実行すると、誤って他プロセスを停止しないために次のエラーで止まります。
+
+```text
+[FAILED]
+Stage: service
+Item: port
+Reason: Port 8188 is in use by another process.
+```
+
+その場合は、まず8188を使用しているComfyUIを確認します。
+
+```bash
+ps -eo pid,ppid,args | grep -E '[m]ain.py.*8188'
+```
+
+表示されたPIDについて作業ディレクトリを確認します。`<PID>` は実際の数字へ置き換えてください。
+
+```bash
+readlink -f /proc/<PID>/cwd
+```
+
+`/workspace/runpod-slim/ComfyUI` など、**テンプレートが最初から起動したComfyUIであることを確認できた場合だけ**停止します。
+
+```bash
+kill <PID>
+```
+
+不明なプロセスは停止しないでください。`gpu-bootstrap` 自身が起動するComfyUIは `/workspace/runtime/ComfyUI` を使用します。
+
+その後、`bootstrap.sh` を保存して実行します。`bootstrap.sh` は自分自身を一時ファイルへコピーしてバックグラウンド実行するため、標準入力から `bash -s` へ直接渡さず、いったんファイルへ保存してください。
 
 ```bash
 curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --max-time 180 https://raw.githubusercontent.com/yonayonatail-prog/gpu-bootstrap/main/bootstrap.sh -o bootstrap.sh
@@ -49,6 +91,8 @@ ClineではプロバイダーをOpenAI互換、Base URLを `http://127.0.0.1:800
 Runpod の Pod 作成、API キー、SSH トンネル、VS Code / Cline の設定、接続確認までを省略せずに進める場合は [QWEN38_CLINE_RUNPOD.md](QWEN38_CLINE_RUNPOD.md) を参照してください。
 
 `[STARTED]` はバックグラウンド処理の受付です。構築完了を意味しません。以後ターミナルを閉じても構築は続きます。
+
+`bootstrap.sh` が表示する `Progress: tail -f ...` のうち、`Progress:` は説明表示でありシェルコマンドではありません。進捗確認では次の行だけを実行してください。
 
 ```bash
 tail -f /workspace/runtime/logs/bootstrap.log
@@ -121,6 +165,8 @@ ComfyUI/models/controlnet/controlnet-openpose-sdxl-1.0.safetensors
 
 既存の同一ComfyUIプロセスはPID・プロセス開始時刻・コマンド・設定署名を確認して再利用します。プロファイル、ComfyUI revision、Custom Node構成が変わった場合は、このオーケストレーター自身が起動したComfyUIに限りSIGTERMで自動停止してから切り替えます。実行中の生成ジョブがある場合は中断されるため、テスト環境以外では完了を待ってください。他のプロセスが8188を使用していたら、誤停止を避けるためエラーで止めます。
 
+現時点では、`ss` コマンドが入っていないテンプレートでは再実行時の「自分が起動した8188プロセス」検出ができず、`Port 8188 is in use by another process` と誤判定する場合があります。その場合は `ps` と `/proc/<PID>/cwd` で確認し、`/workspace/runtime/ComfyUI` のプロセスであることを確認してから停止・再実行してください。この制限はコード側でも解消予定です。
+
 ## 保存場所と成果物の扱い
 
 既定の `RUNTIME_ROOT=/workspace/runtime`。変更する場合はRunpodテンプレートの環境変数で指定します。
@@ -188,6 +234,7 @@ Custom Nodeは信頼できるリポジトリだけを追加します。`requirem
 | `disk_preflight` | 作業ディスクを増やす。モデルDL前に停止済み |
 | `dependencies` | `logs/dependencies.log` でPython・CUDA・パッケージのエラーを確認 |
 | `model_download` | モデル別ログ、配布元、通信、必要ならHF_TOKENと利用条件を確認して再実行 |
+| `Stage: service` / `Port 8188 is in use` | `ps -eo pid,ppid,args | grep -E '[m]ain.py.*8188'` で使用中ComfyUIを確認。テンプレート由来と確認できた場合だけ停止して再実行 |
 | `service_health` | `comfyui.log`、GPU、起動時間、ワークフローのNodeを確認 |
 | `[BUSY]` | 別の構築が実行中。`bootstrap.log` を確認 |
 | READYだがブラウザで開けない | Runpod側でHTTP 8188を公開したか確認 |
@@ -202,7 +249,7 @@ python3 -m venv .venv
 pip install -r requirements.txt
 python orchestrator.py video --plan
 python -m unittest discover -s tests -v
-bash -n bootstrap.sh scripts/install_comfy.sh scripts/install_llm.sh
+bash -n bootstrap.sh runpod-doctor.sh scripts/install_comfy.sh scripts/install_llm.sh scripts/install_upscaler.sh
 ```
 
 `--plan` は設定を検証し、モデル一覧・容量・配置先を表示します。モデル取得、環境導入、GPU起動は行いません。Windowsでも実行できます。本体の構築実行はLinux専用です。
