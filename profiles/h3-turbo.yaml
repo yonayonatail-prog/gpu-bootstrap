@@ -9,8 +9,8 @@ models:
   - minimax_h3_audio_vae_fp32
   - minimax_h3_turbo_8step
 custom_nodes: []
-# ComfyUI v0.38.0 ships the pinned MiniMax H3 I2V template through
-# comfyui-workflow-templates. See H3_TURBO_RUNPOD.md for the tested settings.
+# The v0.38.0 installer fetches the official H3 I2V template from a pinned
+# workflow_templates commit and writes the tested Turbo variant into the runtime.
 workflows: []
 download:
   # Four assets come from the same H3 repo; keep concurrency modest on shared
