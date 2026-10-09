@@ -192,8 +192,10 @@ def notify(gpu_name: str, detail: str, open_browser: bool) -> None:
     message = f"{gpu_name}: {detail}"
     log(f"AVAILABLE: {message}")
 
-    if not windows_toast(title, message):
-        fallback_alert()
+    # Always make an audible alert attempt. The toast is supplemental and may
+    # be silent depending on the user's Windows notification settings.
+    fallback_alert()
+    windows_toast(title, message)
 
     if open_browser:
         try:
