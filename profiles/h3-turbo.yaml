@@ -1,0 +1,29 @@
+name: h3-turbo
+services:
+  comfyui: true
+  llm: false
+models:
+  - minimax_h3_fl2va_fp8
+  - minimax_h3_text_encoder_nvfp4
+  - minimax_h3_video_vae_fp16
+  - minimax_h3_audio_vae_fp32
+  - minimax_h3_turbo_8step
+custom_nodes: []
+# ComfyUI v0.38.0 ships the pinned MiniMax H3 I2V template through
+# comfyui-workflow-templates. See H3_TURBO_RUNPOD.md for the tested settings.
+workflows: []
+download:
+  # Four assets come from the same H3 repo; keep concurrency modest on shared
+  # RunPod IPs to reduce transient Hugging Face throttling.
+  max_concurrent: 2
+  retries: 5
+disk:
+  # Models total about 41.4 GiB. Leave room for the modern ComfyUI stack,
+  # temporary download data, and generated video/audio.
+  install_budget_gib: 30
+  reserve_gib: 10
+comfyui:
+  repo: https://github.com/Comfy-Org/ComfyUI.git
+  revision: 6b747c0428c343e1417219641db93a4fb7cb69ae # v0.38.0
+  port: 8188
+  startup_timeout_seconds: 600
