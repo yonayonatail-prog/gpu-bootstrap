@@ -51,10 +51,15 @@ tail -f /workspace/runtime/logs/bootstrap.log
 
 ## Workflow
 
-ComfyUI v0.38.0 が同梱する **MiniMax H3 I2V** テンプレートを開きます。初回は次の設定から始めてください。
+構築時に Comfy-Org の公式 MiniMax H3 I2V workflow を固定commitから取得し、実Podで確認した FP8 / FP16 / 8-step Turbo 設定へ自動変換して、次へ配置します。
 
 ```text
-first_frame: 好きな入力画像
+/workspace/runtime/ComfyUI/user/default/workflows/h3_turbo_i2v.json
+```
+
+ComfyUI の Workflow 一覧から `h3_turbo_i2v.json` を開き、`LoadImage` を好きな入力画像へ差し替えれば使えます。標準設定は次のとおりです。
+
+```text
 unet_name: minimax_h3_fl2va_pruned_fp8_scaled.safetensors
 clip_name: qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
 vae_name: minimax_h3_video_vae_fp16.safetensors
