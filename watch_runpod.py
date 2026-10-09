@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""
-Watch RunPod Community Cloud GPU availability from a local machine.
+"""Watch RunPod Community Cloud GPU availability from a local machine.
 
-No third-party dependencies are required.
-Set RUNPOD_API_KEY in the environment before running.
+No third-party dependencies are required. Set RUNPOD_API_KEY in the
+environment before running.
 
 Repeat --gpu to watch multiple GPU types with a single API request, for example:
   python watch_runpod.py --gpu "RTX 3090" --gpu "RTX 4090"
@@ -63,10 +62,7 @@ def graphql(api_key: str, timeout: float) -> list[dict[str, Any]]:
         {
             "query": QUERY,
             "variables": {
-                "priceInput": {
-                    "gpuCount": 1,
-                    "secureCloud": False,
-                }
+                "priceInput": {"gpuCount": 1, "secureCloud": False},
             },
         }
     ).encode("utf-8")
@@ -110,31 +106,48 @@ def find_gpu(gpu_types: list[dict[str, Any]], needle: str) -> dict[str, Any] | N
     ]
     if not candidates:
         return None
-
     return sorted(candidates, key=lambda item: len(str(item.get("displayName", ""))))[0]
 
 
-def availability(gpu: dict[str, Any]) -> tuple[bool, str]:
+def availability(gpu: dict[str, Any]) -> tuple[bool | None, str]:
+    """Return True/False when RunPod reports a known stock state, else None.
+
+    RunPod documents stockStatus High/Medium/Low as available inventory. The
+    older implementation only looked at availableGpuCounts/maxUnreservedGpuCount,
+    but those fields can be absent even while the web console lists the GPU as
+    available. Treat stockStatus as authoritative when present and use the count
+    fields only as a fallback.
+    """
     lowest = gpu.get("lowestPrice")
     if not isinstance(lowest, dict):
         return False, "no Community offer"
 
+    stock_raw = lowest.get("stockStatus")
+    stock = str(stock_raw).strip().casefold() if stock_raw else ""
     unreserved = lowest.get("maxUnreservedGpuCount")
     counts = lowest.get("availableGpuCounts") or []
-    available = (
-        isinstance(unreserved, int)
-        and unreserved >= 1
-    ) or (
-        isinstance(counts, list)
-        and any(isinstance(count, int) and count >= 1 for count in counts)
-    )
+
+    if stock in {"high", "medium", "low"}:
+        available: bool | None = True
+    elif stock in {"none", "out", "unavailable", "outofstock", "out_of_stock"}:
+        available = False
+    elif isinstance(unreserved, int) and unreserved >= 1:
+        available = True
+    elif isinstance(counts, list) and any(
+        isinstance(count, int) and count >= 1 for count in counts
+    ):
+        available = True
+    elif isinstance(unreserved, int) and unreserved == 0:
+        available = False
+    else:
+        available = None
 
     price = lowest.get("uninterruptablePrice")
     if price is None:
         price = gpu.get("communityPrice")
 
     pieces = [
-        f"stock={lowest.get('stockStatus') or 'unknown'}",
+        f"stock={stock_raw or 'unknown'}",
         f"unreserved={unreserved if unreserved is not None else 'unknown'}",
         f"gpu_counts={counts or 'none'}",
     ]
@@ -188,7 +201,6 @@ def fallback_alert() -> None:
             return
         except Exception:
             pass
-
     print("\a", end="", flush=True)
 
 
@@ -196,9 +208,6 @@ def notify(gpu_name: str, detail: str, open_browser: bool) -> None:
     title = "RunPod Community GPU available"
     message = f"{gpu_name}: {detail}"
     log(f"AVAILABLE: {message}")
-
-    # Always make an audible alert attempt. The toast is supplemental and may
-    # be silent depending on the user's Windows notification settings.
     fallback_alert()
     windows_toast(title, message)
 
@@ -304,8 +313,6 @@ def main() -> int:
 
     while True:
         try:
-            # One GraphQL request returns all GPU types; evaluate every watched
-            # target against the same snapshot instead of polling once per GPU.
             gpu_types = graphql(api_key, timeout=args.timeout)
             any_available = False
             browser_opened = False
@@ -313,7 +320,7 @@ def main() -> int:
             for target in targets:
                 gpu = find_gpu(gpu_types, target)
                 if gpu is None:
-                    available = False
+                    available: bool | None = False
                     detail = f"no Community GPU type matched {target!r}"
                     name = target
                 else:
@@ -321,6 +328,14 @@ def main() -> int:
                     name = str(gpu.get("displayName") or target)
 
                 previous_available, previous_detail = previous[target]
+
+                if available is None:
+                    if detail != previous_detail:
+                        log(f"UNKNOWN: {name} {detail}")
+                    previous[target] = (previous_available, detail)
+                    any_available = any_available or previous_available is True
+                    continue
+
                 if available != previous_available or detail != previous_detail:
                     state = "AVAILABLE" if available else "UNAVAILABLE"
                     log(f"{state}: {name} {detail}")
