@@ -162,13 +162,29 @@ cd "$COMFY"
 nohup "$VENV/bin/python" main.py \
   --listen 0.0.0.0 \
   --port 8188 \
+  --enable-cors-header \
   >"$LOG_DIR/comfy.log" 2>&1 &
 echo $! > "$ROOT/comfy.pid"
 
+# Readiness means both the API and the actual frontend root are served by this
+# process. RunPod's HTTP proxy reaches ComfyUI as a cross-site browser request;
+# --enable-cors-header disables ComfyUI's localhost-origin-only middleware that
+# otherwise returns HTTP 403 when opening *.proxy.runpod.net from the console.
 for _ in $(seq 1 90); do
+  API_OK=0
+  ROOT_OK=0
   if curl -fsS "http://127.0.0.1:8188/system_stats" >/dev/null 2>&1; then
+    API_OK=1
+  fi
+  if curl -fsS "http://127.0.0.1:8188/" 2>/dev/null | grep -qi '<title>ComfyUI</title>'; then
+    ROOT_OK=1
+  fi
+  if [[ "$API_OK" -eq 1 && "$ROOT_OK" -eq 1 ]]; then
     echo "[READY] MiniMax H3 experimental ComfyUI"
-    echo "ComfyUI: http://127.0.0.1:8188"
+    echo "ComfyUI local: http://127.0.0.1:8188"
+    if [[ -n "${RUNPOD_POD_ID:-}" ]]; then
+      echo "ComfyUI proxy: https://${RUNPOD_POD_ID}-8188.proxy.runpod.net"
+    fi
     echo "Workflow: $WORKFLOW_NAME"
     echo "Base: FP8 scaled (chosen because this experiment keeps the pod's CUDA 12.8/PyTorch stack)"
     echo "Turbo: official LightX2V 8-step LoRA"
@@ -179,5 +195,7 @@ for _ in $(seq 1 90); do
 done
 
 echo "ERROR: ComfyUI did not become healthy on port 8188." >&2
+echo "Local API: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8188/system_stats || true)" >&2
+echo "Local root: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8188/ || true)" >&2
 tail -n 120 "$LOG_DIR/comfy.log" >&2 || true
 exit 30
