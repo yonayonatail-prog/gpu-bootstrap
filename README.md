@@ -10,7 +10,7 @@ Gitには設定・コード・ワークフローを保存します。モデル�
 
 1. Ubuntu 22.04 / 24.04、Python 3.10–3.13、NVIDIA GPU・動作するドライバ、rootまたはパスワード不要のsudoを使えるテンプレートを用意します。**普段使いではComfyUI同梱テンプレートより、できるだけ素のCUDA / PyTorch系テンプレートを推奨します。** `gpu-bootstrap` 自身が固定revisionのComfyUIと専用venvを構築するため、既存ComfyUI・既存venv・pip設定・8188番ポートがあるテンプレートは衝突要因になります。推奨検証対象はRTX 4090です。CUDA 12.8用PyTorchをインストールするので、対応する十分新しいNVIDIAドライバを使ってください。ドライバ自体はこの仕組みでは導入しません。
 2. HTTPポート **8188** を公開します。ComfyUIは `0.0.0.0:8188` で待ち受けます。RunpodのPodでは、プロキシのHost/Origin差によるComfyUIの403を避けるため、`RUNPOD_POD_ID` からそのPod専用のOriginを自動指定します。別のプロキシURLを使う場合は `COMFYUI_CORS_ORIGIN` で上書きできます。ComfyUI自体にはログイン認証を追加していないため、アクセスURLを公開せず、必要ならSSHトンネル等でアクセスを制限してください。
-3. `/workspace` の作業ディスクは **60 GB以上** を初期目安にします。標準videoはモデル約9.2 GiBに加え、Python/CUDA依存・一時ファイル・生成出力分が必要です。起動時に必要空き容量を計算します。既定では導入予算20 GiB、残す空き容量5 GiBを確保します。
+3. `/workspace` の作業ディスクは **60 GB以上** を初期目安にします。標準videoはモデル約9.2 GiBに加え、Python/CUDA依存・一時ファイル・生成出力分が必要です。起動時に必要空き容量を計算します。既定では導入予算20 GiB、残す空き容量5 GiBを確保します。`h3-turbo` はモデルだけで約41.4 GiBあるため、Container diskは100 GB以上、120 GB推奨です。
 
 標準のvideo/imageモデルは公開配布です。通常 `HF_TOKEN` は不要です。ただしRunpodの共有IPでは、他利用者のアクセスを含めてHugging Faceの匿名APIレート制限に到達し、公開モデルでも `429 Too Many Requests` になる場合があります。頻繁に使う場合はHugging Faceの読み取りトークンで認証しておくと安定します。後からgatedモデルを追加する場合も、Hugging Face側で利用条件に同意してからRunpod Secretまたは環境変数へ読み取りトークンを追加します。
 
@@ -71,7 +71,7 @@ curl --fail --silent --show-error --location --retry 3 --connect-timeout 30 --ma
 bash bootstrap.sh base
 ```
 
-既定の `base` はモデルも Custom Node も取得しない最小の ComfyUI 構成です。SeeThrough を使う場合は最後を `seethrough` に、Wan 動画生成を使う場合は `video` に、画像生成は `image` に変更します。**各profileは直接実行できるため、`seethrough` の前に `base` を実行する必要はありません。** 今回追加した比較用プロファイルは `netayume-lumina`、`illustrious-sdxl`、`qwen-image-edit-2511` です。TRELLIS2 の画像→3D環境は `trellis2` に変更します。SeeThrough の操作は [SEE_THROUGH_RUNPOD.md](SEE_THROUGH_RUNPOD.md)、TRELLIS2 固有の Pod 条件と操作は [TRELLIS2_RUNPOD.md](TRELLIS2_RUNPOD.md) を参照してください。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、保存した `bootstrap.sh` の内容を確認してから実行してください。
+既定の `base` はモデルも Custom Node も取得しない最小の ComfyUI 構成です。SeeThrough を使う場合は最後を `seethrough` に、Wan 動画生成を使う場合は `video` に、MiniMax H3 Turbo動画生成は `h3-turbo` に、画像生成は `image` に変更します。**各profileは直接実行できるため、`seethrough` や `h3-turbo` の前に `base` を実行する必要はありません。** 今回追加した比較用プロファイルは `netayume-lumina`、`illustrious-sdxl`、`qwen-image-edit-2511` です。TRELLIS2 の画像→3D環境は `trellis2` に変更します。SeeThrough の操作は [SEE_THROUGH_RUNPOD.md](SEE_THROUGH_RUNPOD.md)、MiniMax H3 Turboは [H3_TURBO_RUNPOD.md](H3_TURBO_RUNPOD.md)、TRELLIS2 固有の Pod 条件と操作は [TRELLIS2_RUNPOD.md](TRELLIS2_RUNPOD.md) を参照してください。フォークした場合は、URLの所有者・リポジトリ名をフォーク先へ差し替えてください。取得元を確認したい場合は、保存した `bootstrap.sh` の内容を確認してから実行してください。
 
 RunpodをClineのLLMサーバーとして使う場合は、Runpod Secretまたは環境変数にAPIキーを設定してから `agent` を指定します。LLM APIはPod内の `127.0.0.1:8000` だけで待ち受けるため、RunpodのHTTPポートを追加公開する必要はありません。
 
@@ -106,7 +106,7 @@ tail -f /workspace/runtime/logs/bootstrap.log
 
 `[READY]` が出たらRunpodの **Connect → HTTP Service :8188** から開きます。`0.0.0.0` は待ち受けアドレスであり、手元PCで開くURLではありません。処理時間は回線・配布元・GPU・依存導入に左右されます。数十分は目安であり保証ではありません。
 
-ComfyUIのWorkflow一覧から、使うprofileに対応するJSONを開いてRunします。新しい3つは `netayume_lumina_lora.json`、`illustrious_sdxl_ipadapter_openpose.json`、`qwen_image_edit_2511_multi_reference.json` です。`base` には同梱ワークフローはありません。**起動時に勝手に生成ジョブを投入することはありません。** READYはCUDAデバイス、HTTP応答、ワークフローに必要なノードの存在までの確認です。実際の生成成功・画質までは保証しません。
+ComfyUIのWorkflow一覧から、使うprofileに対応するJSONを開いてRunします。`h3-turbo` は構築時に公式MiniMax H3 I2Vテンプレートを固定commitから取得し、実機確認済みのTurbo設定へ変換した `h3_turbo_i2v.json` を配置します。比較用3つは `netayume_lumina_lora.json`、`illustrious_sdxl_ipadapter_openpose.json`、`qwen_image_edit_2511_multi_reference.json` です。`base` には同梱ワークフローはありません。**起動時に勝手に生成ジョブを投入することはありません。** READYはCUDAデバイス、HTTP応答、ワークフローに必要なノードの存在までの確認です。実際の生成成功・画質までは保証しません。
 
 ## 標準プロファイル
 
@@ -115,6 +115,7 @@ ComfyUIのWorkflow一覧から、使うprofileに対応するJSONを開いてRun
 | `bash bootstrap.sh base` | モデル・Custom Node なしの最小 ComfyUI | なし |
 | `bash bootstrap.sh seethrough` | SeeThrough によるアニメ調キャラクターのレイヤー・深度分解 | PSD / Depth PSD、合成プレビュー |
 | `bash bootstrap.sh video` | Wan 2.1 T2V 1.3B FP16 / UMT5 FP8 scaled / Wan VAE | 832×480・33フレーム・16fps、animated WebP保存 |
+| `bash bootstrap.sh h3-turbo` | MiniMax H3 I2V + FP8/FP16 + 8-step Turbo LoRA | `h3_turbo_i2v.json`（構築時に公式workflowから生成） |
 | `bash bootstrap.sh image` | Stable Diffusion 1.5 FP16 | 512×512、PNG保存 |
 | `bash bootstrap.sh trellis2` | TRELLIS.2 を使う ComfyUI の画像→3D環境 | PBR テクスチャ付き GLB、3Dプレビュー |
 | `bash bootstrap.sh netayume-lumina` | NetaYume-Lumina + 自分のLoRAで素の生成を確認 | `netayume_lumina_lora.json` |
@@ -132,9 +133,15 @@ ComfyUIのWorkflow一覧から、使うprofileに対応するJSONを開いてRun
 
 これはモデル配置と起動に必要な最低目安です。生成画像の保存、再ダウンロード用の余裕、依存パッケージの増加分は別途必要になります。
 
+### MiniMax H3 Turbo
+
+`h3-turbo` は、実Podで生成成功した MiniMax H3 Image-to-Video 構成を正式profile化したものです。RTX 5090 32GB環境では、8-step Turboで **5秒動画を107秒で生成** できた実測があります（user-confirmed）。これは1回の実機測定値で、入力画像、解像度、Podホスト、GPU負荷などによって所要時間は変動します。RTX 4090 24GBは候補ですが、現時点では同profileでの実生成は未確認です。
+
+モデルは約41.4 GiBで、Container diskは100 GB以上、120 GB推奨です。ComfyUI v0.38.0、PyTorch 2.8.0/cu128を使用し、公式H3 I2V workflowを固定commitから取得して `h3_turbo_i2v.json` へ変換します。詳細と初期設定は [H3_TURBO_RUNPOD.md](H3_TURBO_RUNPOD.md) を参照してください。
+
 動画の初期出力はanimated WebPです。MP4が必要ならワークフローを追加してください。SeeThrough は `seethrough` プロファイルでのみ導入します。SeeThrough の取得・固定revision・requirements導入に加え、LayerDiffが内部参照するJuggernautのscheduler設定（小さな設定ファイルのみ）も構築時にHugging Faceキャッシュへ先取りします。さらに LayerDiff本体（約10.2 GB）とMarigold深度モデル（約3.3 GB）も、`seethrough` プロファイルの構築中に同じキャッシュへ事前取得します。標準ワークフロー `seethrough_basic.json` は、連続実行時のVRAM不足を避けやすくするため、Layer生成を `1024`、Depth推論を `768` で実行する設定を既定とします。より高いDepth解像度が必要な場合は `SeeThrough_GenerateDepth` の `resolution_depth` を `-1`（Layerと同解像度）または `1024` に変更できますが、GPUメモリ使用量が増え、連続実行時に `torch.OutOfMemoryError` が出やすくなります。自動取得が失敗するPodでは、[SeeThrough手順書の事前取得手順](SEE_THROUGH_RUNPOD.md#81-hugging-face-接続に失敗する場合モデルを事前取得する)を実行してください。
 
-ComfyUIはv0.3.50のcommit、PyTorchは2.7.1/cu128、Transformersは4.55.4に固定しています。標準モデルも配布元のcommit・バイト数・SHA-256を固定しています。新モデルを利用するときは対応するComfyUI・依存条件も更新してください。ComfyUIの間接依存パッケージすべてを完全ロックした環境ではありません。
+既存の標準profileは主にComfyUI v0.3.50 / PyTorch 2.7.1/cu128 / Transformers 4.55.4を使用します。`h3-turbo` はComfyUI v0.38.0 / PyTorch 2.8.0+cu128へ分離しており、既存profileの依存スタックを巻き込みません。標準モデルも配布元のcommit・バイト数・SHA-256を固定しています。新モデルを利用するときは対応するComfyUI・依存条件も更新してください。ComfyUIの間接依存パッケージすべてを完全ロックした環境ではありません。
 
 モデルの利用条件: [Wan配布元](https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged)、[SD1.5配布元](https://huggingface.co/Comfy-Org/stable-diffusion-v1-5-archive)。モデルのライセンスはコードの配布条件とは別です。
 
@@ -261,6 +268,7 @@ bash bootstrap.sh seethrough
 | `dependencies` | `logs/dependencies.log` でPython・CUDA・パッケージのエラーを確認 |
 | `model_download` | モデル別ログ、配布元、通信、必要ならHF_TOKENと利用条件を確認して再実行 |
 | `torch.OutOfMemoryError`（SeeThrough / `SeeThrough_GenerateDepth`） | 標準 `seethrough_basic.json` は `resolution_depth=768`。高解像度へ変更していた場合は `768` または `640` へ下げる。連続実行後に発生する場合はComfyUIを再起動してVRAMを解放してから再実行 |
+| `torch.OutOfMemoryError`（`h3-turbo`） | まず解像度を0.4MPへ戻し、durationを短くする。連続生成後だけ発生する場合はComfyUI再起動も候補 |
 | `Stage: service` / `Port 8188 is in use` | `ps -eo pid,ppid,args | grep -E '[m]ain.py.*8188'` で使用中ComfyUIを確認。テンプレート由来と確認できた場合だけ停止して再実行 |
 | `service_health` | `comfyui.log`、GPU、起動時間、ワークフローのNodeを確認 |
 | `[BUSY]` | 別の構築が実行中。`bootstrap.log` を確認 |
@@ -275,6 +283,7 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 python orchestrator.py video --plan
+python orchestrator.py h3-turbo --plan
 python -m unittest discover -s tests -v
 bash -n bootstrap.sh runpod-doctor.sh scripts/install_comfy.sh scripts/install_llm.sh scripts/install_upscaler.sh
 ```
@@ -287,6 +296,7 @@ bash -n bootstrap.sh runpod-doctor.sh scripts/install_comfy.sh scripts/install_l
 
 - 新品Podで1行実行し、SSH切断後も構築が進むこと。
 - 標準video/imageでREADYとなり、ワークフローを1回実行して成果物が得られること。
+- `h3-turbo` をRTX 4090 24GBで実生成し、所要時間・VRAMを確認すること。
 - 同じコマンドの再実行で再DL・ComfyUI二重起動が起きないこと。
 - 取得中断後のhf/aria2実通信での再開、失敗からの復帰、実際の所要時間・VRAM。
 - 外部成果物転送を追加した後、転送完了を確認してからPodを削除できること。
