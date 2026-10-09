@@ -4,6 +4,11 @@ Watch RunPod Community Cloud GPU availability from a local machine.
 
 No third-party dependencies are required.
 Set RUNPOD_API_KEY in the environment before running.
+
+Repeat --gpu to watch multiple GPU types with a single API request, for example:
+  python watch_runpod.py --gpu "RTX 3090" --gpu "RTX 4090"
+  python watch_runpod.py --gpu "RTX 4090" --gpu "RTX 5090" --open-browser
+Comma-separated values are also accepted.
 """
 
 from __future__ import annotations
@@ -211,14 +216,39 @@ def max_one(value: str) -> int:
     return number
 
 
+def normalize_gpu_args(values: list[str] | None) -> list[str]:
+    if not values:
+        return ["RTX 4090"]
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        for part in value.split(","):
+            gpu = part.strip()
+            if not gpu:
+                continue
+            key = gpu.casefold()
+            if key not in seen:
+                seen.add(key)
+                result.append(gpu)
+
+    if not result:
+        raise ValueError("At least one non-empty --gpu value is required.")
+    return result
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Watch RunPod Community Cloud GPU availability."
     )
     parser.add_argument(
         "--gpu",
-        default="RTX 4090",
-        help='GPU display-name substring to watch (default: "RTX 4090").',
+        action="append",
+        dest="gpus",
+        help=(
+            'GPU display-name substring to watch. Repeat --gpu for multiple GPUs '
+            'or use comma-separated values. Default: "RTX 4090".'
+        ),
     )
     parser.add_argument(
         "--interval",
@@ -235,12 +265,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--once",
         action="store_true",
-        help="Check once and exit.",
+        help="Check once and exit. Success means at least one watched GPU is available.",
     )
     parser.add_argument(
         "--open-browser",
         action="store_true",
-        help="Open the RunPod GPU Cloud console when availability changes to available.",
+        help="Open the RunPod GPU Cloud console when a watched GPU becomes available.",
     )
     return parser.parse_args()
 
@@ -256,40 +286,57 @@ def main() -> int:
         )
         return 2
 
+    try:
+        targets = normalize_gpu_args(args.gpus)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
     log(
-        f"watch start gpu={args.gpu!r} cloud=COMMUNITY "
+        f"watch start gpus={targets!r} cloud=COMMUNITY "
         f"interval={args.interval}s"
     )
 
-    previous_available: bool | None = None
-    previous_detail: str | None = None
+    previous: dict[str, tuple[bool | None, str | None]] = {
+        target: (None, None) for target in targets
+    }
     consecutive_errors = 0
 
     while True:
         try:
+            # One GraphQL request returns all GPU types; evaluate every watched
+            # target against the same snapshot instead of polling once per GPU.
             gpu_types = graphql(api_key, timeout=args.timeout)
-            gpu = find_gpu(gpu_types, args.gpu)
-            if gpu is None:
-                raise RuntimeError(
-                    f"No Community Cloud GPU type matched {args.gpu!r}."
-                )
+            any_available = False
+            browser_opened = False
 
-            available, detail = availability(gpu)
-            name = str(gpu.get("displayName") or args.gpu)
+            for target in targets:
+                gpu = find_gpu(gpu_types, target)
+                if gpu is None:
+                    available = False
+                    detail = f"no Community GPU type matched {target!r}"
+                    name = target
+                else:
+                    available, detail = availability(gpu)
+                    name = str(gpu.get("displayName") or target)
 
-            if available != previous_available or detail != previous_detail:
-                state = "AVAILABLE" if available else "UNAVAILABLE"
-                log(f"{state}: {name} {detail}")
+                previous_available, previous_detail = previous[target]
+                if available != previous_available or detail != previous_detail:
+                    state = "AVAILABLE" if available else "UNAVAILABLE"
+                    log(f"{state}: {name} {detail}")
 
-            if available and previous_available is not True:
-                notify(name, detail, open_browser=args.open_browser)
+                if available and previous_available is not True:
+                    should_open = args.open_browser and not browser_opened
+                    notify(name, detail, open_browser=should_open)
+                    browser_opened = browser_opened or should_open
 
-            previous_available = available
-            previous_detail = detail
+                previous[target] = (available, detail)
+                any_available = any_available or available
+
             consecutive_errors = 0
 
             if args.once:
-                return 0 if available else 1
+                return 0 if any_available else 1
 
             time.sleep(args.interval)
 
