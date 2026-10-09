@@ -97,7 +97,10 @@ ComfyUI: 0.38.0
 DynamicVRAM: enabled
 Turbo: 8-step
 I2V MP4 generation: PASS (user-confirmed)
+5-second video generation time: 107 seconds (user-confirmed)
 ```
+
+107秒はこの実Podでの1回の実測値です。入力画像、解像度、Podホスト、GPU負荷などで変動するため、性能保証値ではありません。
 
 ComfyUI は cu130 以上を使うと一部の最適化 CUDA operations を利用できますが、初版は cu128 + eager fallback で実生成できた構成を正本にしています。
 
