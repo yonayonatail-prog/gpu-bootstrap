@@ -56,13 +56,19 @@ fi
 
 "$VENV/bin/python" -m pip install -U pip wheel setuptools >/dev/null
 "$VENV/bin/python" -m pip install -r "$COMFY/requirements.txt"
-"$VENV/bin/python" -m pip install -U huggingface_hub
+# tokenizers 0.23.x requires huggingface-hub < 2.0. Keep the CLI available
+# without upgrading the environment to an incompatible huggingface-hub 2.x.
+"$VENV/bin/python" -m pip install -U "huggingface_hub>=0.34,<2.0"
 
 "$VENV/bin/python" - <<'PY'
 import torch
+import huggingface_hub
+import tokenizers
 print("TORCH", torch.__version__)
 print("TORCH_CUDA", torch.version.cuda)
 print("CUDA_AVAILABLE", torch.cuda.is_available())
+print("HUGGINGFACE_HUB", huggingface_hub.__version__)
+print("TOKENIZERS", tokenizers.__version__)
 if not torch.cuda.is_available():
     raise SystemExit(23)
 print("GPU", torch.cuda.get_device_name(0))
