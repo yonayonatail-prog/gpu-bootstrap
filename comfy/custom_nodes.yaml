@@ -16,3 +16,15 @@ nodes:
   comfyui_controlnet_aux:
     repo: https://github.com/Fannovel16/comfyui_controlnet_aux.git
     revision: 59b1fc411ede8623b2997855b8018f0b3b6cf49f
+  ComfyUI-fixableflow:
+    repo: https://github.com/mattyamonaca/ComfyUI-fixableflow.git
+    revision: 3f65ef0cec0c4fe8806b7e1b4685c2e3f3933594
+  ComfyUI-FreeMemory:
+    repo: https://github.com/ShmuelRonen/ComfyUI-FreeMemory.git
+    revision: 44fc13f97feec9fdb50ccf342ad64eeb52a95512
+  ComfyUI_essentials:
+    repo: https://github.com/cubiq/ComfyUI_essentials.git
+    revision: 9d9f4bedfc9f0321c19faf71855e228c93bd0dc9
+  ComfyUI-FramePackWrapper_Plus:
+    repo: https://github.com/ShmuelRonen/ComfyUI-FramePackWrapper_Plus.git
+    revision: 93e60c83ffc73c249339955f8684d86487484c27
