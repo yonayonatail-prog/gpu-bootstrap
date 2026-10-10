@@ -1,0 +1,26 @@
+name: fixableflow
+services:
+  comfyui: true
+  llm: false
+# Initial integration deliberately pins the node environment first.
+# Model downloads are kept manual until their exact checksums are locked after the first RunPod validation.
+models: []
+custom_nodes:
+  - ComfyUI-fixableflow
+  - ComfyUI-FreeMemory
+  - ComfyUI_essentials
+  - ComfyUI-FramePackWrapper_Plus
+workflows: []
+download:
+  max_concurrent: 3
+  retries: 3
+# Upstream recommends roughly 100 GB of container storage for the full model set.
+# Keep a large preflight budget even though model auto-download is not enabled yet.
+disk:
+  install_budget_gib: 80
+  reserve_gib: 10
+comfyui:
+  repo: https://github.com/Comfy-Org/ComfyUI.git
+  revision: d5c1954d5cd4a789bbf84d2b75a955a5a3f93de8
+  port: 8188
+  startup_timeout_seconds: 300
