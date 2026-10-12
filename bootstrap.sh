@@ -216,6 +216,26 @@ sanitize_pip_environment() {
     fi
 }
 
+start_ready_alert() {
+    local log_file=$1 log_offset=$2 alert_profile=$3 alert_tty=$4
+    [[ "${GPU_BOOTSTRAP_READY_BELL:-1}" != 0 ]] || return 0
+    [[ -n "$alert_tty" && -w "$alert_tty" ]] || return 0
+    (
+        tail -c "+$((log_offset + 1))" -F "$log_file" 2>/dev/null |
+        while IFS= read -r line; do
+            case "$line" in
+                '[READY]')
+                    printf '\a\n[READY ALERT] %s is ready.\n' "$alert_profile" >"$alert_tty" 2>/dev/null || true
+                    break
+                    ;;
+                '[FAILED]'|'[BUSY]'*)
+                    break
+                    ;;
+            esac
+        done
+    ) >/dev/null 2>&1 &
+}
+
 # Run the cheapest failure check in the foreground, before APT, pip, Git, or model downloads.
 if [[ "$profile" == doctor ]]; then
     gpu_precheck
@@ -229,12 +249,24 @@ if [[ "${GPU_BOOTSTRAP_WORKER:-0}" != 1 ]]; then
     gpu_precheck
     sanitize_pip_environment
     mkdir -p "$RUNTIME_ROOT/logs"
+    log_file="$RUNTIME_ROOT/logs/bootstrap.log"
+    touch "$log_file"
+    log_offset=$(wc -c <"$log_file")
+    alert_tty=''
+    if [[ -t 1 ]]; then
+        alert_tty=$(tty 2>/dev/null || true)
+    fi
     # Use a unique copy so a second invocation cannot overwrite a running shell script.
     launcher=$(mktemp "$RUNTIME_ROOT/launcher.XXXXXX.sh")
     cp -- "${BASH_SOURCE[0]}" "$launcher"
-    GPU_BOOTSTRAP_WORKER=1 GPU_BOOTSTRAP_PRECHECKED=1 nohup bash "$launcher" "$profile" </dev/null >>"$RUNTIME_ROOT/logs/bootstrap.log" 2>&1 &
-    echo "[STARTED] Profile: $profile; PID: $!"
-    echo "Progress: tail -f '$RUNTIME_ROOT/logs/bootstrap.log'"
+    GPU_BOOTSTRAP_WORKER=1 GPU_BOOTSTRAP_PRECHECKED=1 nohup bash "$launcher" "$profile" </dev/null >>"$log_file" 2>&1 &
+    worker_pid=$!
+    start_ready_alert "$log_file" "$log_offset" "$profile" "$alert_tty"
+    echo "[STARTED] Profile: $profile; PID: $worker_pid"
+    echo "Progress: tail -f '$log_file'"
+    if [[ "${GPU_BOOTSTRAP_READY_BELL:-1}" != 0 && -n "$alert_tty" ]]; then
+        echo 'Ready alert: terminal bell enabled (set GPU_BOOTSTRAP_READY_BELL=0 to disable).'
+    fi
     echo 'You may close this terminal. Look for [READY] or [FAILED] in the log.'
     exit 0
 fi
