@@ -244,6 +244,14 @@ start_status_heartbeat() {
     (( interval >= 5 )) || interval=5
     (
         local started=$SECONDS current_stage detail
+        local iface='' rx_prev='' rx_now='' tick_prev=$SECONDS tick_now delta_seconds net_rate='n/a'
+        local log_file='' log_age='' pip_state='' current_activity='' extra=''
+        if command -v ip >/dev/null 2>&1; then
+            iface=$(ip route 2>/dev/null | awk '/default/ {print $5; exit}' || true)
+        fi
+        if [[ -n "$iface" && -r "/sys/class/net/$iface/statistics/rx_bytes" ]]; then
+            rx_prev=$(cat "/sys/class/net/$iface/statistics/rx_bytes" 2>/dev/null || true)
+        fi
         while sleep "$interval"; do
             kill -0 "$target_pid" 2>/dev/null || break
             current_stage=orchestrator
@@ -257,8 +265,47 @@ start_status_heartbeat() {
                 model_download) detail="$RUNTIME_ROOT/logs/downloads.jsonl + model logs" ;;
                 *) detail="$RUNTIME_ROOT/status.json" ;;
             esac
-            printf '[WORKING] %s: %ss elapsed; process alive; details: %s\n' \
-                "$current_stage" "$((SECONDS - started))" "$detail"
+
+            tick_now=$SECONDS
+            delta_seconds=$((tick_now - tick_prev))
+            net_rate='n/a'
+            if [[ -n "$iface" && -r "/sys/class/net/$iface/statistics/rx_bytes" && -n "$rx_prev" && "$delta_seconds" -gt 0 ]]; then
+                rx_now=$(cat "/sys/class/net/$iface/statistics/rx_bytes" 2>/dev/null || true)
+                if [[ "$rx_now" =~ ^[0-9]+$ && "$rx_prev" =~ ^[0-9]+$ && "$rx_now" -ge "$rx_prev" ]]; then
+                    net_rate=$(awk -v a="$rx_prev" -v b="$rx_now" -v s="$delta_seconds" 'BEGIN { printf "%.2f", (b-a)/s/1024/1024 }')
+                    rx_prev=$rx_now
+                fi
+            fi
+            tick_prev=$tick_now
+
+            extra=''
+            if [[ "$net_rate" != n/a ]]; then
+                extra="; net RX ${net_rate} MB/s"
+            fi
+            if [[ "$current_stage" == environment ]]; then
+                log_file="$RUNTIME_ROOT/logs/dependencies.log"
+                pip_state='pip inactive'
+                if pgrep -af '[p]ip install' >/dev/null 2>&1; then
+                    pip_state='pip active'
+                fi
+                log_age='unknown'
+                if [[ -f "$log_file" ]]; then
+                    log_mtime=$(stat -c %Y "$log_file" 2>/dev/null || true)
+                    now_epoch=$(date +%s)
+                    if [[ "$log_mtime" =~ ^[0-9]+$ ]]; then
+                        log_age="$((now_epoch - log_mtime))s"
+                    fi
+                    current_activity=$(grep -E '^(Collecting|  Downloading|Installing collected packages|Successfully installed|CUDA READY:)' "$log_file" 2>/dev/null | tail -n 1 | sed 's/^[[:space:]]*//;s/[[:space:]][[:space:]]*/ /g' | cut -c1-160 || true)
+                else
+                    current_activity=''
+                fi
+                extra+="; $pip_state; detail log age ${log_age}"
+                if [[ -n "$current_activity" ]]; then
+                    extra+="; current: $current_activity"
+                fi
+            fi
+            printf '[WORKING] %s: %ss elapsed; process alive%s; details: %s\n' \
+                "$current_stage" "$((SECONDS - started))" "$extra" "$detail"
         done
     ) &
     heartbeat_pid=$!
