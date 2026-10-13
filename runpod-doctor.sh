@@ -5,6 +5,7 @@ umask 077
 RUNTIME_ROOT="${RUNTIME_ROOT:-/workspace/runtime}"
 REPORT="$RUNTIME_ROOT/runpod-support-report.txt"
 REPORT_JSON="$RUNTIME_ROOT/runpod-support-report.json"
+NETWORK_JSON="$RUNTIME_ROOT/network-doctor.json"
 mkdir -p "$RUNTIME_ROOT"
 
 utc_now() { date -u +%FT%TZ; }
@@ -161,7 +162,148 @@ PY
   exit 42
 fi
 
+probe_network() {
+  local prefix="$1" label="$2" url="$3"
+  local sample_bytes=$((8 * 1024 * 1024))
+  local output rc speed bytes http_code seconds mbps status
+
+  set +e
+  output="$(curl --location --silent --show-error \
+    --range "0-$((sample_bytes - 1))" \
+    --connect-timeout 8 --max-time 12 \
+    --output /dev/null \
+    --write-out '%{speed_download} %{size_download} %{http_code} %{time_total}' \
+    "$url" 2>/dev/null)"
+  rc=$?
+  set -e
+
+  read -r speed bytes http_code seconds <<<"$output"
+  speed="${speed:-0}"
+  bytes="${bytes:-0}"
+  http_code="${http_code:-000}"
+  seconds="${seconds:-0}"
+
+  if [[ ! "$speed" =~ ^[0-9]+([.][0-9]+)?$ || ! "$bytes" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    speed=0
+    bytes=0
+  fi
+
+  mbps="$(awk -v s="$speed" 'BEGIN { printf "%.2f", s/1024/1024 }')"
+  if awk -v b="$bytes" 'BEGIN { exit !(b < 262144) }'; then
+    status="UNKNOWN"
+  elif awk -v m="$mbps" 'BEGIN { exit !(m < 2) }'; then
+    status="VERY_SLOW"
+  elif awk -v m="$mbps" 'BEGIN { exit !(m < 5) }'; then
+    status="SLOW"
+  elif awk -v m="$mbps" 'BEGIN { exit !(m < 20) }'; then
+    status="OK"
+  else
+    status="GOOD"
+  fi
+
+  printf '%-12s %8s MB/s  %-9s  sampled %.1f MiB in %.1fs  HTTP %s\n' \
+    "$label" "$mbps" "$status" \
+    "$(awk -v b="$bytes" 'BEGIN { printf "%.1f", b/1024/1024 }')" "$seconds" "$http_code"
+
+  printf -v "${prefix}_MBPS" '%s' "$mbps"
+  printf -v "${prefix}_STATUS" '%s' "$status"
+  printf -v "${prefix}_RC" '%s' "$rc"
+  printf -v "${prefix}_HTTP" '%s' "$http_code"
+}
+
+network_diagnosis() {
+  local slow_count=0 known_count=0
+  local value
+  for value in "$PYTORCH_MBPS" "$HF_MBPS" "$GITHUB_MBPS"; do
+    if awk -v m="$value" 'BEGIN { exit !(m > 0) }'; then
+      known_count=$((known_count + 1))
+      if awk -v m="$value" 'BEGIN { exit !(m < 5) }'; then
+        slow_count=$((slow_count + 1))
+      fi
+    fi
+  done
+
+  NETWORK_STATUS="UNKNOWN"
+  NETWORK_NOTE="Could not collect enough throughput data. Treat provider download speed as unverified."
+
+  if [[ $known_count -eq 3 && $slow_count -eq 3 ]]; then
+    NETWORK_STATUS="HOST_EGRESS_SLOW"
+    NETWORK_NOTE="All three provider paths are below 5 MB/s; this Pod/host egress or shared uplink is likely the bottleneck. Expect long environment/model downloads."
+  elif awk -v p="$PYTORCH_MBPS" -v h="$HF_MBPS" -v g="$GITHUB_MBPS" 'BEGIN { exit !(p > 0 && p < 5 && h >= 10 && g >= 10) }'; then
+    NETWORK_STATUS="PYTORCH_PATH_SLOW"
+    NETWORK_NOTE="PyTorch CDN is slow while Hugging Face and GitHub are healthy; CUDA/PyTorch installation may be slow even if model downloads are fine."
+  elif awk -v p="$PYTORCH_MBPS" -v h="$HF_MBPS" -v g="$GITHUB_MBPS" 'BEGIN { exit !(h > 0 && h < 5 && p >= 10 && g >= 10) }'; then
+    NETWORK_STATUS="HUGGINGFACE_PATH_SLOW"
+    NETWORK_NOTE="Hugging Face is the slow path; large model downloads may dominate setup time."
+  elif awk -v p="$PYTORCH_MBPS" -v h="$HF_MBPS" -v g="$GITHUB_MBPS" 'BEGIN { exit !(g > 0 && g < 5 && p >= 10 && h >= 10) }'; then
+    NETWORK_STATUS="GITHUB_PATH_SLOW"
+    NETWORK_NOTE="GitHub is the slow path; repository/bootstrap fetches may be delayed while model/CDN traffic is healthier."
+  elif [[ $known_count -eq 3 && $slow_count -eq 0 ]]; then
+    NETWORK_STATUS="HEALTHY"
+    NETWORK_NOTE="No sampled provider path is below 5 MB/s. Throughput can still vary during large downloads."
+  elif [[ $known_count -gt 0 ]]; then
+    NETWORK_STATUS="MIXED"
+    NETWORK_NOTE="At least one sampled provider path is below 5 MB/s. Provider-specific routing or shared-host contention may affect setup time."
+  fi
+}
+
 printf '%s\n' "$SMI_QUERY"
 printf '%s\n' "$CUDA_OUTPUT"
 free_kib="$(df -Pk "$RUNTIME_ROOT" | awk 'NR==2 {print $4}')"
-printf 'Disk free: %.1f GiB\n[POD STATUS] USABLE\n' "$(awk "BEGIN { print $free_kib / 1048576 }")"
+printf 'Disk free: %.1f GiB\n' "$(awk "BEGIN { print $free_kib / 1048576 }")"
+
+PYTORCH_MBPS=0 PYTORCH_STATUS=UNKNOWN PYTORCH_RC=0 PYTORCH_HTTP=000
+HF_MBPS=0 HF_STATUS=UNKNOWN HF_RC=0 HF_HTTP=000
+GITHUB_MBPS=0 GITHUB_STATUS=UNKNOWN GITHUB_RC=0 GITHUB_HTTP=000
+NETWORK_STATUS="SKIPPED"
+NETWORK_NOTE="Network benchmark disabled."
+
+if [[ "${RUNPOD_DOCTOR_NETWORK:-1}" != 0 ]]; then
+  echo
+  echo '=== NETWORK DOCTOR (8 MiB samples; max 12s each) ==='
+  if command -v curl >/dev/null 2>&1; then
+    probe_network PYTORCH 'PyTorch CDN' 'https://download.pytorch.org/whl/cu128/torch-2.7.1%2Bcu128-cp312-cp312-manylinux_2_28_x86_64.whl'
+    probe_network HF 'Hugging Face' 'https://huggingface.co/google-bert/bert-base-uncased/resolve/main/pytorch_model.bin'
+    probe_network GITHUB 'GitHub' 'https://github.com/Comfy-Org/ComfyUI/archive/refs/tags/v0.38.0.tar.gz'
+    network_diagnosis
+  else
+    NETWORK_STATUS="UNKNOWN"
+    NETWORK_NOTE="curl is unavailable, so provider throughput was not measured."
+  fi
+  echo "[NETWORK STATUS] $NETWORK_STATUS"
+  echo "Network note: $NETWORK_NOTE"
+  echo 'Slow network does not make the GPU unusable; it is reported separately from POD STATUS.'
+else
+  echo '[NETWORK STATUS] SKIPPED (RUNPOD_DOCTOR_NETWORK=0)'
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  NETWORK_JSON="$NETWORK_JSON" NETWORK_STATUS="$NETWORK_STATUS" NETWORK_NOTE="$NETWORK_NOTE" \
+  PYTORCH_MBPS="$PYTORCH_MBPS" PYTORCH_STATUS="$PYTORCH_STATUS" PYTORCH_HTTP="$PYTORCH_HTTP" \
+  HF_MBPS="$HF_MBPS" HF_STATUS="$HF_STATUS" HF_HTTP="$HF_HTTP" \
+  GITHUB_MBPS="$GITHUB_MBPS" GITHUB_STATUS="$GITHUB_STATUS" GITHUB_HTTP="$GITHUB_HTTP" \
+  python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+providers = {}
+for key, label in (("PYTORCH", "PyTorch CDN"), ("HF", "Hugging Face"), ("GITHUB", "GitHub")):
+    providers[key.lower()] = {
+        "label": label,
+        "mb_per_second": float(os.environ.get(f"{key}_MBPS", "0") or 0),
+        "status": os.environ.get(f"{key}_STATUS", "UNKNOWN"),
+        "http_code": os.environ.get(f"{key}_HTTP", "000"),
+    }
+payload = {
+    "utc_timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+    "status": os.environ.get("NETWORK_STATUS", "UNKNOWN"),
+    "note": os.environ.get("NETWORK_NOTE", ""),
+    "providers": providers,
+}
+Path(os.environ["NETWORK_JSON"]).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+  echo "Network JSON: $NETWORK_JSON"
+fi
+
+printf '[POD STATUS] USABLE\n'
