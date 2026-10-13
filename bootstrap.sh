@@ -236,6 +236,34 @@ start_ready_alert() {
     ) >/dev/null 2>&1 &
 }
 
+start_status_heartbeat() {
+    local target_pid=$1 status_file=$2
+    local interval="${GPU_BOOTSTRAP_HEARTBEAT_SECONDS:-30}"
+    [[ "$interval" =~ ^[0-9]+$ ]] || interval=30
+    (( interval > 0 )) || return 0
+    (( interval >= 5 )) || interval=5
+    (
+        local started=$SECONDS current_stage detail
+        while sleep "$interval"; do
+            kill -0 "$target_pid" 2>/dev/null || break
+            current_stage=orchestrator
+            if [[ -f "$status_file" ]]; then
+                current_stage=$(sed -n 's/^[[:space:]]*"stage":[[:space:]]*"\([^"]*\)".*/\1/p' "$status_file" | head -n 1)
+                [[ -n "$current_stage" ]] || current_stage=orchestrator
+            fi
+            case "$current_stage" in
+                environment) detail="$RUNTIME_ROOT/logs/dependencies.log" ;;
+                service_start|service_health) detail="$RUNTIME_ROOT/logs/comfyui.log" ;;
+                model_download) detail="$RUNTIME_ROOT/logs/downloads.jsonl + model logs" ;;
+                *) detail="$RUNTIME_ROOT/status.json" ;;
+            esac
+            printf '[WORKING] %s: %ss elapsed; process alive; details: %s\n' \
+                "$current_stage" "$((SECONDS - started))" "$detail"
+        done
+    ) &
+    heartbeat_pid=$!
+}
+
 # Run the cheapest failure check in the foreground, before APT, pip, Git, or model downloads.
 if [[ "$profile" == doctor ]]; then
     gpu_precheck
@@ -279,7 +307,14 @@ sanitize_pip_environment
 
 stage=bootstrap
 askpass=''
-cleanup() { [[ -z "$askpass" ]] || rm -f -- "$askpass"; }
+heartbeat_pid=''
+cleanup() {
+    [[ -z "$askpass" ]] || rm -f -- "$askpass"
+    if [[ -n "$heartbeat_pid" ]]; then
+        kill "$heartbeat_pid" 2>/dev/null || true
+        wait "$heartbeat_pid" 2>/dev/null || true
+    fi
+}
 trap cleanup EXIT
 trap 'code=$?; printf "\n[FAILED]\nStage: %s\nExit: %s\nAction: Check this log and rerun the same command.\n" "$stage" "$code"; exit "$code"' ERR
 command -v flock >/dev/null || { echo '[FAILED] Ubuntu util-linux (flock) is required'; exit 1; }
@@ -345,4 +380,12 @@ stage=orchestrator
 if [[ "$profile" == agent ]]; then
     exec bash "$repo/scripts/install_llm.sh" "$RUNTIME_ROOT"
 fi
-"$controller/bin/python" -u "$repo/orchestrator.py" "$profile" --runtime-root "$RUNTIME_ROOT"
+"$controller/bin/python" -u "$repo/orchestrator.py" "$profile" --runtime-root "$RUNTIME_ROOT" &
+orchestrator_pid=$!
+start_status_heartbeat "$orchestrator_pid" "$RUNTIME_ROOT/status.json"
+wait "$orchestrator_pid"
+if [[ -n "$heartbeat_pid" ]]; then
+    kill "$heartbeat_pid" 2>/dev/null || true
+    wait "$heartbeat_pid" 2>/dev/null || true
+    heartbeat_pid=''
+fi
